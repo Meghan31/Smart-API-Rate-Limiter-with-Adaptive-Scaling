@@ -1,0 +1,76 @@
+# ============================================
+# ConfigMap for Smart API Rate Limiter Application
+# ============================================
+# Stores non-sensitive configuration data for the application
+# Use Secrets for sensitive data like passwords
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rate-limiter-config
+  namespace: rate-limiter
+  labels:
+    app: smart-rate-limiter
+    component: application
+    tier: backend
+  annotations:
+    description: "Configuration settings for Smart API Rate Limiter"
+data:
+  # ============================================
+  # Redis Configuration
+  # ============================================
+  # Redis service DNS name (service-name.namespace.svc.cluster.local)
+  # Short form works within same namespace
+  SPRING_DATA_REDIS_HOST: "redis-0.redis.rate-limiter.svc.cluster.local"
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_DATA_REDIS_TIMEOUT: "5000ms"
+
+  # Redis Connection Pool Settings
+  SPRING_DATA_REDIS_LETTUCE_POOL_ENABLED: "true"
+  SPRING_DATA_REDIS_LETTUCE_POOL_MAX_ACTIVE: "20"
+  SPRING_DATA_REDIS_LETTUCE_POOL_MAX_IDLE: "10"
+  SPRING_DATA_REDIS_LETTUCE_POOL_MIN_IDLE: "5"
+  SPRING_DATA_REDIS_LETTUCE_POOL_MAX_WAIT: "2000ms"
+
+  # ============================================
+  # Application Configuration
+  # ============================================
+  SPRING_APPLICATION_NAME: "smart-rate-limiter"
+  SPRING_PROFILES_ACTIVE: "k8s"
+  SERVER_PORT: "8080"
+
+  # ============================================
+  # Rate Limiter Settings
+  # ============================================
+  # Token Bucket algorithm settings
+  RATE_LIMITER_TOKEN_BUCKET_ENABLED: "true"
+  RATE_LIMITER_TOKEN_BUCKET_CAPACITY: "100"
+  RATE_LIMITER_TOKEN_BUCKET_REFILL_RATE: "10.0"
+
+  # ============================================
+  # Actuator Configuration
+  # ============================================
+  # Enable health endpoints for Kubernetes probes
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,metrics,info,prometheus"
+  MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "always"
+  MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+  MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED: "true"
+  MANAGEMENT_HEALTH_READINESSSTATE_ENABLED: "true"
+
+  # ============================================
+  # JVM Configuration
+  # ============================================
+  # JVM options optimized for containerized environment
+  JAVA_OPTS: >-
+    -XX:+UseContainerSupport
+    -XX:MaxRAMPercentage=75.0
+    -XX:+ExitOnOutOfMemoryError
+    -Djava.security.egd=file:/dev/./urandom
+    -XX:+UseG1GC
+    -XX:MaxGCPauseMillis=200
+
+  # ============================================
+  # Logging Configuration
+  # ============================================
+  LOGGING_LEVEL_COM_RATELIMITER: "INFO"
+  LOGGING_LEVEL_ROOT: "WARN"

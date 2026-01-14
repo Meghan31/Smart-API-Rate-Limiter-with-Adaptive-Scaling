@@ -1,0 +1,16 @@
+# ============================================
+# Namespace for Smart API Rate Limiter
+# ============================================
+# Creates a dedicated namespace to isolate rate limiter resources
+# from other applications in the cluster
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rate-limiter
+  labels:
+    app: smart-rate-limiter
+    environment: production
+    managed-by: kubectl
+  annotations:
+    description: "Namespace for Smart API Rate Limiter application and its dependencies"

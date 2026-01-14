@@ -1,5 +1,12 @@
+# ============================================
+# Docker Compose Configuration for Smart API Rate Limiter
+# ============================================
+# Note: 'version' field is now obsolete in Docker Compose (removed to prevent warnings)
+
 services:
+  # ============================================
   # Redis 7.2 - Distributed cache for rate limiting
+  # ============================================
   redis:
     image: redis:7.2-alpine
     container_name: smart-rate-limiter-redis
@@ -18,7 +25,58 @@ services:
     networks:
       - rate-limiter-network
 
+  # ============================================
+  # Smart Rate Limiter Application
+  # ============================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: smart-rate-limiter:latest
+    container_name: smart-rate-limiter-app
+    ports:
+      - '8080:8080'
+    environment:
+      # Redis connection settings
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+
+      # Application settings
+      - SPRING_PROFILES_ACTIVE=default
+      - SERVER_PORT=8080
+
+      # Rate limiter configuration
+      - RATE_LIMITER_TOKEN_BUCKET_CAPACITY=100
+      - RATE_LIMITER_TOKEN_BUCKET_REFILL_RATE=10.0
+
+      # JVM settings for container
+      - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8080/actuator/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks:
+      - rate-limiter-network
+    # Resource limits (optional, helps prevent resource exhaustion)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ============================================
   # Redis Commander - Web UI for Redis management (optional)
+  # ============================================
   redis-commander:
     image: rediscommander/redis-commander:latest
     container_name: smart-rate-limiter-redis-commander
@@ -27,15 +85,22 @@ services:
     environment:
       - REDIS_HOSTS=local:redis:6379
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - rate-limiter-network
 
+# ============================================
+# Volumes
+# ============================================
 volumes:
   redis-data:
     driver: local
 
+# ============================================
+# Networks
+# ============================================
 networks:
   rate-limiter-network:
     driver: bridge

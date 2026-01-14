@@ -1,0 +1,109 @@
+# ============================================
+# Redis StatefulSet for Smart API Rate Limiter
+# ============================================
+# StatefulSet provides stable network identities and persistent storage
+# for Redis, ensuring data persistence across pod restarts
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: rate-limiter
+  labels:
+    app: redis
+    component: cache
+    tier: backend
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      component: cache
+  template:
+    metadata:
+      labels:
+        app: redis
+        component: cache
+        tier: backend
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.2-alpine
+        imagePullPolicy: IfNotPresent
+
+        # Redis command with persistence and memory settings
+        command:
+          - redis-server
+          - --appendonly
+          - "yes"
+          - --maxmemory
+          - "200mb"
+          - --maxmemory-policy
+          - allkeys-lru
+
+        ports:
+        - containerPort: 6379
+          name: redis
+          protocol: TCP
+
+        # Resource limits to prevent resource exhaustion
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+        # Liveness probe - checks if Redis is running
+        # If this fails, Kubernetes will restart the container
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+
+        # Readiness probe - checks if Redis is ready to accept connections
+        # If this fails, pod will be removed from service endpoints
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+
+        # Mount persistent volume for data
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+
+        # Security context - run as non-root user
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+
+  # Volume claim templates for persistent storage
+  # Each replica gets its own persistent volume
+  volumeClaimTemplates:
+  - metadata:
+      name: redis-data
+      labels:
+        app: redis
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+      # Optional: Specify storage class for different storage types
+      # storageClassName: standard

@@ -104,3 +104,13 @@ dist/
 *.p12
 secrets/
 credentials/
+
+# ============================================
+# Docker & Kubernetes
+# ============================================
+# Kubernetes secrets (if created)
+k8s/*-secret.yaml
+k8s/secrets/
+
+# Docker
+.dockerignore

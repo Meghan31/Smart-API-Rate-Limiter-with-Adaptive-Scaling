@@ -1,0 +1,128 @@
+# ============================================
+# Kubernetes Profile Configuration
+# ============================================
+# This profile is activated when running in Kubernetes
+# Activated via: SPRING_PROFILES_ACTIVE=k8s
+
+spring:
+  application:
+    name: smart-rate-limiter
+
+  # Redis Configuration for Kubernetes
+  # These values can be overridden by environment variables from ConfigMap
+  data:
+    redis:
+      # Service DNS: redis-0.redis.rate-limiter.svc.cluster.local
+      host: ${SPRING_DATA_REDIS_HOST:redis-0.redis.rate-limiter.svc.cluster.local}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:5000ms}
+      lettuce:
+        pool:
+          enabled: ${SPRING_DATA_REDIS_LETTUCE_POOL_ENABLED:true}
+          max-active: ${SPRING_DATA_REDIS_LETTUCE_POOL_MAX_ACTIVE:20}
+          max-idle: ${SPRING_DATA_REDIS_LETTUCE_POOL_MAX_IDLE:10}
+          min-idle: ${SPRING_DATA_REDIS_LETTUCE_POOL_MIN_IDLE:5}
+          max-wait: ${SPRING_DATA_REDIS_LETTUCE_POOL_MAX_WAIT:2000ms}
+        shutdown-timeout: 200ms
+        cluster:
+          refresh:
+            adaptive: true
+            period: 30s
+
+# Server Configuration
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  tomcat:
+    # Connection timeout for graceful shutdown
+    connection-timeout: 20s
+    threads:
+      max: 200
+      min-spare: 10
+
+# Rate Limiter Configuration
+rate-limiter:
+  token-bucket:
+    enabled: ${RATE_LIMITER_TOKEN_BUCKET_ENABLED:true}
+    capacity: ${RATE_LIMITER_TOKEN_BUCKET_CAPACITY:100}
+    refill-rate: ${RATE_LIMITER_TOKEN_BUCKET_REFILL_RATE:10.0}
+
+# Actuator Configuration for Kubernetes
+management:
+  # Server configuration for actuator
+  server:
+    port: 8080  # Same port as application (common in Kubernetes)
+
+  endpoints:
+    web:
+      exposure:
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,metrics,info,prometheus}
+      base-path: /actuator
+
+  endpoint:
+    health:
+      show-details: ${MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS:always}
+      probes:
+        enabled: ${MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED:true}
+
+  # Health indicators
+  health:
+    # Liveness state for Kubernetes liveness probe
+    livenessState:
+      enabled: ${MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED:true}
+
+    # Readiness state for Kubernetes readiness probe
+    readinessState:
+      enabled: ${MANAGEMENT_HEALTH_READINESSSTATE_ENABLED:true}
+
+    # Redis health check
+    redis:
+      enabled: true
+
+  # Metrics configuration
+  metrics:
+    export:
+      prometheus:
+        enabled: ${MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED:true}
+    tags:
+      # Add environment and application tags to all metrics
+      environment: kubernetes
+      application: ${spring.application.name}
+
+  # Info endpoint configuration
+  info:
+    env:
+      enabled: true
+    java:
+      enabled: true
+    os:
+      enabled: true
+
+# Logging Configuration for Kubernetes
+logging:
+  level:
+    root: ${LOGGING_LEVEL_ROOT:WARN}
+    com.ratelimiter: ${LOGGING_LEVEL_COM_RATELIMITER:INFO}
+    org.springframework.data.redis: INFO
+    io.lettuce: WARN
+
+  # JSON logging for better log aggregation in Kubernetes
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+  # File logging disabled in Kubernetes (use stdout/stderr)
+  file:
+    enabled: false
+
+# Spring Boot Configuration
+spring.lifecycle:
+  # Graceful shutdown timeout (should match terminationGracePeriodSeconds)
+  timeout-per-shutdown-phase: 30s
+
+# Additional Kubernetes-specific settings
+info:
+  app:
+    name: ${spring.application.name}
+    description: Smart API Rate Limiter with Adaptive Scaling
+    version: 0.0.1-SNAPSHOT
+    environment: kubernetes

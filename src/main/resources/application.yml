@@ -21,6 +21,7 @@ spring:
 # Server Configuration
 server:
   port: 8080
+  shutdown: graceful  # Enable graceful shutdown for Kubernetes
 
 # Rate Limiter Configuration
 rate-limiter:
@@ -38,6 +39,13 @@ management:
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true  # Enable Kubernetes probes
+  health:
+    livenessState:
+      enabled: true  # Enable liveness state
+    readinessState:
+      enabled: true  # Enable readiness state
   metrics:
     export:
       prometheus:
@@ -49,3 +57,7 @@ logging:
     com.ratelimiter: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# Spring Boot Configuration
+spring.lifecycle:
+  timeout-per-shutdown-phase: 30s  # Graceful shutdown timeout

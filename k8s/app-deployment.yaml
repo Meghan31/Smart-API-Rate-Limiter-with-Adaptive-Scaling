@@ -1,0 +1,167 @@
+# ============================================
+# Deployment for Smart API Rate Limiter Application
+# ============================================
+# Manages multiple replicas of the application with rolling updates
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rate-limiter-app
+  namespace: rate-limiter
+  labels:
+    app: smart-rate-limiter
+    component: application
+    tier: backend
+    version: v1
+  annotations:
+    description: "Smart API Rate Limiter with distributed token bucket algorithm"
+spec:
+  # Initial replica count - will be managed by HPA
+  replicas: 3
+
+  # Selector must match template labels
+  selector:
+    matchLabels:
+      app: smart-rate-limiter
+      component: application
+
+  # Rolling update strategy for zero-downtime deployments
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1              # Max 1 extra pod during update
+      maxUnavailable: 0        # Ensure at least specified replicas available
+
+  template:
+    metadata:
+      labels:
+        app: smart-rate-limiter
+        component: application
+        tier: backend
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      # Security context for the pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      # Init container to wait for Redis to be ready
+      initContainers:
+      - name: wait-for-redis
+        image: busybox:1.36
+        command:
+          - sh
+          - -c
+          - |
+            echo "Waiting for Redis to be ready..."
+            until nc -z redis-0.redis.rate-limiter.svc.cluster.local 6379; do
+              echo "Redis not ready, waiting..."
+              sleep 2
+            done
+            echo "Redis is ready!"
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+
+      containers:
+      - name: rate-limiter
+        image: smart-rate-limiter:latest
+        imagePullPolicy: IfNotPresent
+
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+
+        # Environment variables from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: rate-limiter-config
+
+        # Resource requests and limits
+        # Requests: guaranteed resources
+        # Limits: maximum resources the container can use
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+
+        # Liveness probe - checks if application is alive
+        # If this fails, Kubernetes will restart the container
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 60    # Wait for app to start
+          periodSeconds: 10           # Check every 10s
+          timeoutSeconds: 5           # Wait 5s for response
+          successThreshold: 1         # 1 success = healthy
+          failureThreshold: 3         # 3 failures = restart
+
+        # Readiness probe - checks if application is ready to serve traffic
+        # If this fails, pod will be removed from service endpoints
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30    # Wait for app to initialize
+          periodSeconds: 5            # Check every 5s
+          timeoutSeconds: 3           # Wait 3s for response
+          successThreshold: 1         # 1 success = ready
+          failureThreshold: 3         # 3 failures = not ready
+
+        # Startup probe - gives app more time to start
+        # Useful for slow-starting applications
+        startupProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 12        # 12 * 10s = 120s max startup time
+
+        # Lifecycle hooks
+        lifecycle:
+          # Graceful shutdown - give app time to finish requests
+          preStop:
+            exec:
+              command:
+              - sh
+              - -c
+              - sleep 15
+
+        # Security context for the container
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+
+      # Graceful termination period
+      terminationGracePeriodSeconds: 30
+
+      # Restart policy
+      restartPolicy: Always
+
+      # DNS policy for service discovery
+      dnsPolicy: ClusterFirst

@@ -1,0 +1,53 @@
+# ============================================
+# Service for Smart API Rate Limiter Application
+# ============================================
+# LoadBalancer service exposes the application externally
+# In cloud environments (AWS, GCP, Azure), this provisions a cloud load balancer
+# For local testing (minikube, kind), use NodePort or port-forward instead
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: rate-limiter-service
+  namespace: rate-limiter
+  labels:
+    app: smart-rate-limiter
+    component: application
+    tier: backend
+  annotations:
+    description: "External-facing service for Smart API Rate Limiter"
+    # Cloud-specific annotations (uncomment based on your cloud provider)
+    # AWS:
+    # service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    # GCP:
+    # cloud.google.com/load-balancer-type: "External"
+    # Azure:
+    # service.beta.kubernetes.io/azure-load-balancer-internal: "false"
+spec:
+  # LoadBalancer type for external access
+  # Change to ClusterIP for internal-only access
+  # Change to NodePort for local development
+  type: LoadBalancer
+
+  # Session affinity for sticky sessions (optional)
+  # Can help with client-side caching
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hours
+
+  ports:
+  - port: 80              # External port
+    targetPort: 8080      # Container port
+    protocol: TCP
+    name: http
+    # nodePort: 30080     # Uncomment for NodePort type (30000-32767 range)
+
+  selector:
+    app: smart-rate-limiter
+    component: application
+
+  # Health check configuration
+  # Determines which pods receive traffic
+  # Pods must pass readiness probe to receive traffic
+  externalTrafficPolicy: Cluster  # or Local for source IP preservation

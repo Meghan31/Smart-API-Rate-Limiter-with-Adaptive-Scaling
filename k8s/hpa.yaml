@@ -1,0 +1,89 @@
+# ============================================
+# Horizontal Pod Autoscaler (HPA) for Smart API Rate Limiter
+# ============================================
+# Automatically scales the number of pods based on CPU and memory utilization
+# Requires metrics-server to be installed in the cluster
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: rate-limiter-hpa
+  namespace: rate-limiter
+  labels:
+    app: smart-rate-limiter
+    component: application
+  annotations:
+    description: "Auto-scales rate limiter pods based on CPU and memory metrics"
+spec:
+  # Target deployment to scale
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: rate-limiter-app
+
+  # Minimum and maximum number of replicas
+  minReplicas: 2
+  maxReplicas: 10
+
+  # Scaling behavior configuration
+  behavior:
+    scaleDown:
+      # Stabilization window to prevent flapping
+      stabilizationWindowSeconds: 300  # 5 minutes
+      policies:
+      - type: Percent
+        value: 50              # Scale down max 50% of current pods
+        periodSeconds: 60      # Per minute
+      - type: Pods
+        value: 2               # Or max 2 pods
+        periodSeconds: 60      # Per minute
+      selectPolicy: Min        # Use the policy that scales down the least
+
+    scaleUp:
+      # Stabilization window for scale up
+      stabilizationWindowSeconds: 60   # 1 minute
+      policies:
+      - type: Percent
+        value: 100             # Scale up max 100% of current pods
+        periodSeconds: 30      # Per 30 seconds
+      - type: Pods
+        value: 4               # Or max 4 pods
+        periodSeconds: 30      # Per 30 seconds
+      selectPolicy: Max        # Use the policy that scales up the most
+
+  # Metrics to use for scaling decisions
+  metrics:
+  # CPU-based scaling
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70  # Target 70% CPU utilization
+
+  # Memory-based scaling
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80  # Target 80% memory utilization
+
+---
+# ============================================
+# NOTE: Metrics Server Installation
+# ============================================
+# HPA requires metrics-server to be installed in your cluster
+#
+# For minikube:
+#   minikube addons enable metrics-server
+#
+# For other clusters, install metrics-server:
+#   kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+#
+# Verify metrics-server is running:
+#   kubectl get deployment metrics-server -n kube-system
+#
+# Check if metrics are available:
+#   kubectl top nodes
+#   kubectl top pods -n rate-limiter

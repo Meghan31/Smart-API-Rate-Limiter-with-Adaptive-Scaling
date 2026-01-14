@@ -1,0 +1,37 @@
+# ============================================
+# Redis Service for Smart API Rate Limiter
+# ============================================
+# ClusterIP service provides internal cluster access to Redis
+# This is a headless service (required for StatefulSet)
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: rate-limiter
+  labels:
+    app: redis
+    component: cache
+    tier: backend
+  annotations:
+    description: "Internal service for Redis cache access"
+spec:
+  # ClusterIP for internal cluster communication only
+  type: ClusterIP
+
+  # clusterIP: None makes this a headless service
+  # Required for StatefulSet to create stable network identities
+  clusterIP: None
+
+  ports:
+  - port: 6379
+    targetPort: 6379
+    protocol: TCP
+    name: redis
+
+  selector:
+    app: redis
+    component: cache
+
+  # Session affinity ensures requests from same client go to same pod
+  sessionAffinity: None
