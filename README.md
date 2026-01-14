@@ -6,10 +6,14 @@ A high-performance, distributed API rate limiting service built with Spring Boot
 
 - **Token Bucket Algorithm**: Industry-standard rate limiting with configurable capacity and refill rates
 - **Distributed Architecture**: Redis-backed synchronization across multiple application instances
+- **Per-User Rate Limiting**: Independent rate limits per API key (X-API-Key header)
+- **Atomic Operations**: Lua scripts ensure thread-safe token consumption in Redis
+- **Automatic Token Refill**: Tokens refill at a configurable rate
 - **Real-time Monitoring**: Built-in metrics and health checks via Spring Boot Actuator
 - **Flexible Configuration**: YAML-based configuration for easy customization
 - **Thread-Safe**: Concurrent request handling with proper synchronization
-- **HTTP Standards Compliant**: Proper 429 responses and rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining)
+- **HTTP Standards Compliant**: Proper 429 responses and rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-User)
+- **Production Ready**: Connection pooling, error handling, fail-open strategy, and comprehensive logging
 
 ## 🏗️ Architecture
 
@@ -28,9 +32,9 @@ A high-performance, distributed API rate limiting service built with Spring Boot
 
 ## 📋 Prerequisites
 
-- Java 17 or higher
+- Java 21 or higher
 - Maven 3.6+
-- Docker (for Redis)
+- Docker and Docker Compose (for Redis)
 
 ## ��️ Quick Start
 
@@ -77,7 +81,108 @@ rate-limiter:
     enabled: true
     capacity: 100 # Maximum tokens in bucket
     refill-rate: 10.0 # Tokens added per second
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 20  # Maximum connections
+          max-idle: 10
+          min-idle: 5
 ```
+
+## 🗄️ Redis Setup & Management
+
+### Starting Redis
+
+IMPORTANT: Redis must be running before starting the application.
+
+```bash
+# Start Redis with Docker Compose
+docker-compose up -d
+
+# Check if Redis is running
+docker ps | grep redis
+
+# Test Redis connection
+docker exec -it smart-rate-limiter-redis redis-cli ping
+# Should return: PONG
+```
+
+### Redis Commander (Web UI)
+
+Access Redis Commander at `http://localhost:8081` to view and manage Redis data in a web interface.
+
+### Redis CLI Commands
+
+```bash
+# Access Redis CLI
+docker exec -it smart-rate-limiter-redis redis-cli
+
+# View all rate limit keys
+KEYS rate_limit:*
+
+# View specific user's data
+HGETALL rate_limit:user-123
+
+# Delete a user's rate limit
+DEL rate_limit:user-123
+
+# Monitor Redis commands in real-time
+MONITOR
+```
+
+### Redis Key Structure
+
+```
+Key: rate_limit:{user_id}
+Type: Hash
+Fields:
+  - tokens: Current available tokens (double)
+  - last_refill: Last refill timestamp in milliseconds (long)
+TTL: Automatically expires after 2x refill time
+```
+
+## 🔄 Testing Distributed Rate Limiting
+
+To test rate limiting across multiple application instances:
+
+1. **Start Redis:**
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Start first instance on port 8080:**
+   ```bash
+   mvn spring-boot:run
+   ```
+
+3. **Start second instance on port 8081 (in a new terminal):**
+   ```bash
+   mvn spring-boot:run -Dspring-boot.run.arguments=--server.port=8081
+   ```
+
+4. **Send requests to both instances with the same API key:**
+   ```bash
+   # Send 50 requests to first instance
+   for i in {1..50}; do
+     curl -s -H "X-API-Key: shared-user" http://localhost:8080/api/test > /dev/null
+   done
+
+   # Send 50 requests to second instance
+   for i in {1..50}; do
+     curl -s -H "X-API-Key: shared-user" http://localhost:8081/api/test > /dev/null
+   done
+
+   # Next request from either instance should be rate limited
+   curl -i -H "X-API-Key: shared-user" http://localhost:8080/api/test
+   ```
+
+The rate limiting state is shared across both instances via Redis!
 
 ## 📊 API Endpoints
 
@@ -85,6 +190,16 @@ rate-limiter:
 | ------------------ | ------ | ------------------------------- |
 | `/api/test`        | GET    | Test endpoint for rate limiting |
 | `/actuator/health` | GET    | Health check endpoint           |
+| `/actuator/health/redis` | GET    | Redis health check           |
+| `/actuator/metrics` | GET    | Application metrics           |
+| `/actuator/prometheus` | GET    | Prometheus metrics           |
+
+### Response Headers
+
+All `/api/*` responses include:
+- `X-RateLimit-Limit`: Maximum number of tokens (capacity)
+- `X-RateLimit-Remaining`: Current available tokens
+- `X-RateLimit-User`: User identifier (from X-API-Key header or "anonymous")
 
 ## 🧪 Running Tests
 

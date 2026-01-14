@@ -1,0 +1,41 @@
+services:
+  # Redis 7.2 - Distributed cache for rate limiting
+  redis:
+    image: redis:7.2-alpine
+    container_name: smart-rate-limiter-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - rate-limiter-network
+
+  # Redis Commander - Web UI for Redis management (optional)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: smart-rate-limiter-redis-commander
+    ports:
+      - '8081:8081'
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - rate-limiter-network
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  rate-limiter-network:
+    driver: bridge
