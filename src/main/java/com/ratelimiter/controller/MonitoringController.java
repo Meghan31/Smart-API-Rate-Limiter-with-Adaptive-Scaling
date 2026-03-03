@@ -181,13 +181,12 @@ public class MonitoringController {
                 long remainingTokens = rateLimiterService.getAvailableTokens(apiKey);
                 userInfo.put("remainingTokens", remainingTokens);
 
-                // Get TTL
-                String key = "rate_limit:" + apiKey + ":tokens";
-                Long ttl = redisTemplate.getExpire(key);
-                userInfo.put("ttlSeconds", ttl != null ? ttl : -1);
+                // Get TTL via service (works for both Redis and in-memory fallback)
+                long ttl = rateLimiterService.getTtlSeconds(apiKey);
+                userInfo.put("ttlSeconds", ttl);
 
                 // Calculate percentage
-                int capacity = 100; // Default capacity, could be injected
+                long capacity = rateLimiterService.getCapacity();
                 double percentage = (remainingTokens * 100.0) / capacity;
                 userInfo.put("capacityPercentage", String.format("%.2f%%", percentage));
 
@@ -285,22 +284,11 @@ public class MonitoringController {
     // ========== Private Helper Methods ==========
 
     /**
-     * Retrieves all active API keys from Redis.
+     * Retrieves all active API keys — delegates to the service which handles
+     * both Redis (correct key pattern) and in-memory fallback.
      */
     private Set<String> getActiveUsers() {
-        Set<String> activeUsers = new HashSet<>();
-        try {
-            Set<String> keys = redisTemplate.keys("rate_limit:*:tokens");
-            if (keys != null) {
-                for (String key : keys) {
-                    String apiKey = key.replace("rate_limit:", "").replace(":tokens", "");
-                    activeUsers.add(apiKey);
-                }
-            }
-        } catch (Exception e) {
-            // Silently handle errors
-        }
-        return activeUsers;
+        return rateLimiterService.getActiveUsers();
     }
 
     /**

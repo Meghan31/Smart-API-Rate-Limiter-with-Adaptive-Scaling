@@ -697,7 +697,7 @@
 
         for (let i = 0; i < 10; i++) {
             await sendRequest();
-            await new Promise(r => setTimeout(r, 60));
+            await new Promise(r => setTimeout(r, 0));
         }
 
         addLog('info', 'SYS', 'Burst complete', '');
