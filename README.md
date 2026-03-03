@@ -213,6 +213,303 @@ mvn test
 - **Response Time**: < 5ms for rate limit checks
 - **Scalability**: Horizontally scalable with Redis cluster
 
+## 🐳 Docker Deployment
+
+### Building the Docker Image
+
+The project includes an optimized multi-stage Dockerfile that produces a production-ready image < 250MB.
+
+```bash
+# Build the Docker image
+docker build -t smart-rate-limiter:latest .
+
+# Verify image size
+docker images smart-rate-limiter
+```
+
+### Running with Docker Compose
+
+The easiest way to run the complete stack (application + Redis):
+
+```bash
+# Start all services
+docker-compose up -d
+
+# Check service status
+docker-compose ps
+
+# View logs
+docker-compose logs -f app
+
+# Test the application
+curl http://localhost:8080/actuator/health
+
+# Stop all services
+docker-compose down
+```
+
+### Docker Compose Services
+
+- **app**: Smart Rate Limiter application (port 8080)
+- **redis**: Redis cache (port 6379)
+- **redis-commander**: Redis web UI (port 8081)
+
+### Environment Variables
+
+Configure the application via environment variables in `docker-compose.yml`:
+
+- `SPRING_DATA_REDIS_HOST`: Redis host (default: redis)
+- `SPRING_DATA_REDIS_PORT`: Redis port (default: 6379)
+- `RATE_LIMITER_TOKEN_BUCKET_CAPACITY`: Token bucket capacity (default: 100)
+- `RATE_LIMITER_TOKEN_BUCKET_REFILL_RATE`: Refill rate per second (default: 10.0)
+
+## ☸️ Kubernetes Deployment
+
+### Prerequisites
+
+- Kubernetes cluster (minikube, kind, or cloud provider)
+- kubectl configured
+- Docker for building images
+
+### Quick Deploy to Kubernetes
+
+```bash
+# 1. Build Docker image
+docker build -t smart-rate-limiter:latest .
+
+# 2. Deploy everything to Kubernetes
+cd k8s
+./deploy.sh
+
+# 3. Test the deployment
+./test.sh
+```
+
+### Manual Deployment Steps
+
+```bash
+# Create namespace
+kubectl apply -f k8s/namespace.yaml
+
+# Deploy Redis
+kubectl apply -f k8s/redis-deployment.yaml
+kubectl apply -f k8s/redis-service.yaml
+
+# Deploy application
+kubectl apply -f k8s/app-configmap.yaml
+kubectl apply -f k8s/app-deployment.yaml
+kubectl apply -f k8s/app-service.yaml
+
+# Deploy autoscaler
+kubectl apply -f k8s/hpa.yaml
+
+# Check deployment status
+kubectl get all -n rate-limiter
+```
+
+### Accessing the Application
+
+**Port-forward for local testing:**
+
+```bash
+kubectl port-forward svc/rate-limiter-service 8080:80 -n rate-limiter
+curl http://localhost:8080/actuator/health
+```
+
+**LoadBalancer (cloud environments):**
+
+```bash
+kubectl get svc rate-limiter-service -n rate-limiter
+# Use the EXTERNAL-IP to access the application
+```
+
+### Kubernetes Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    rate-limiter Namespace               │
+│                                                           │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │  Horizontal Pod Autoscaler (2-10 replicas)       │   │
+│  └─────────────────┬────────────────────────────────┘   │
+│                    │                                     │
+│  ┌─────────────────▼────────────────────────────────┐   │
+│  │  Deployment: rate-limiter-app (3 replicas)       │   │
+│  │  - Resources: CPU 250m-500m, Memory 512Mi-1Gi   │   │
+│  │  - Liveness/Readiness Probes                     │   │
+│  │  - Graceful Shutdown (30s)                       │   │
+│  └─────────────────┬────────────────────────────────┘   │
+│                    │                                     │
+│  ┌─────────────────▼────────────────────────────────┐   │
+│  │  Service: rate-limiter-service (LoadBalancer)    │   │
+│  │  Port: 80 → 8080                                 │   │
+│  └──────────────────────────────────────────────────┘   │
+│                                                           │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │  StatefulSet: redis (1 replica)                  │   │
+│  │  - PersistentVolumeClaim: 1Gi                    │   │
+│  │  - Resources: CPU 200m, Memory 256Mi             │   │
+│  └─────────────────┬────────────────────────────────┘   │
+│                    │                                     │
+│  ┌─────────────────▼────────────────────────────────┐   │
+│  │  Service: redis (ClusterIP/Headless)             │   │
+│  │  Port: 6379                                       │   │
+│  └──────────────────────────────────────────────────┘   │
+│                                                           │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │  ConfigMap: rate-limiter-config                  │   │
+│  │  - Redis connection settings                     │   │
+│  │  - Rate limiter configuration                    │   │
+│  │  - JVM tuning parameters                         │   │
+│  └──────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Scaling
+
+**Manual scaling:**
+
+```bash
+kubectl scale deployment rate-limiter-app --replicas=5 -n rate-limiter
+```
+
+**Auto-scaling (HPA):**
+
+The Horizontal Pod Autoscaler automatically scales based on:
+- CPU utilization (target: 70%)
+- Memory utilization (target: 80%)
+- Min replicas: 2
+- Max replicas: 10
+
+```bash
+# Check HPA status
+kubectl get hpa -n rate-limiter
+
+# View HPA details
+kubectl describe hpa rate-limiter-hpa -n rate-limiter
+```
+
+**Note:** HPA requires metrics-server to be installed:
+
+```bash
+# For minikube
+minikube addons enable metrics-server
+
+# For other clusters
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
+
+### Monitoring
+
+**View pod status:**
+
+```bash
+kubectl get pods -n rate-limiter
+kubectl describe pod <pod-name> -n rate-limiter
+```
+
+**View logs:**
+
+```bash
+# All pods
+kubectl logs -l app=smart-rate-limiter -n rate-limiter --tail=100 -f
+
+# Specific pod
+kubectl logs <pod-name> -n rate-limiter -f
+```
+
+**Health checks:**
+
+```bash
+# Liveness probe
+kubectl exec -n rate-limiter <pod-name> -- curl -s http://localhost:8080/actuator/health/liveness
+
+# Readiness probe
+kubectl exec -n rate-limiter <pod-name> -- curl -s http://localhost:8080/actuator/health/readiness
+```
+
+**Resource usage:**
+
+```bash
+kubectl top pods -n rate-limiter
+kubectl top nodes
+```
+
+### Cleanup
+
+```bash
+# Delete all resources (keeps namespace)
+cd k8s
+./cleanup.sh --keep-namespace
+
+# Delete everything including namespace
+./cleanup.sh
+
+# Or manually
+kubectl delete namespace rate-limiter
+```
+
+### Kubernetes Configuration Files
+
+Located in the `k8s/` directory:
+
+- `namespace.yaml`: Creates the rate-limiter namespace
+- `redis-deployment.yaml`: StatefulSet for Redis with persistent storage
+- `redis-service.yaml`: ClusterIP service for Redis
+- `app-configmap.yaml`: Application configuration
+- `app-deployment.yaml`: Application deployment with 3 replicas
+- `app-service.yaml`: LoadBalancer service for external access
+- `hpa.yaml`: Horizontal Pod Autoscaler configuration
+- `deploy.sh`: Automated deployment script
+- `test.sh`: Testing script for deployed application
+- `cleanup.sh`: Cleanup script to remove all resources
+
+### Troubleshooting
+
+**Pods not starting:**
+
+```bash
+kubectl get pods -n rate-limiter
+kubectl describe pod <pod-name> -n rate-limiter
+kubectl logs <pod-name> -n rate-limiter
+```
+
+**Redis connection issues:**
+
+```bash
+# Test Redis connectivity
+kubectl exec -n rate-limiter <app-pod-name> -- nc -zv redis-0.redis.rate-limiter.svc.cluster.local 6379
+
+# Check Redis pod
+kubectl logs -n rate-limiter <redis-pod-name>
+```
+
+**Image pull errors:**
+
+For local images in minikube:
+
+```bash
+# Load image into minikube
+minikube image load smart-rate-limiter:latest
+
+# Or build inside minikube
+eval $(minikube docker-env)
+docker build -t smart-rate-limiter:latest .
+```
+
+**Service not accessible:**
+
+```bash
+# Check service
+kubectl get svc -n rate-limiter
+
+# Check endpoints
+kubectl get endpoints -n rate-limiter
+
+# Use port-forward as alternative
+kubectl port-forward svc/rate-limiter-service 8080:80 -n rate-limiter
+```
+
 ## 🔧 Tech Stack
 
 - **Backend**: Spring Boot 3.2.0

@@ -4,6 +4,9 @@ import com.ratelimiter.service.TokenBucket;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
  * Configuration properties for the Token Bucket rate limiter.
@@ -34,6 +37,30 @@ public class RateLimiterConfig {
             tokenBucket.getCapacity(),
             tokenBucket.getRefillRate()
         );
+    }
+
+    /**
+     * Creates a RedisTemplate bean for Redis operations.
+     *
+     * @param connectionFactory the Redis connection factory
+     * @return configured RedisTemplate instance
+     */
+    @Bean
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+        
+        // Use StringRedisSerializer for keys
+        StringRedisSerializer stringSerializer = new StringRedisSerializer();
+        template.setKeySerializer(stringSerializer);
+        template.setHashKeySerializer(stringSerializer);
+        
+        // Use default serializer for values
+        template.setValueSerializer(stringSerializer);
+        template.setHashValueSerializer(stringSerializer);
+        
+        template.afterPropertiesSet();
+        return template;
     }
 
     /**

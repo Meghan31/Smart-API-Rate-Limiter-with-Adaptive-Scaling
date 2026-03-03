@@ -1,348 +1,725 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Rate Limiter Test</title>
-		<style>
-			body {
-				font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-				max-width: 800px;
-				margin: 50px auto;
-				padding: 20px;
-				background-color: #f5f5f5;
-			}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rate Limiter — API Tester</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base:      #0c0c0e;
+            --bg-surface:   #111114;
+            --bg-card:      #18181c;
+            --bg-hover:     #1f1f25;
+            --border:       #27272d;
+            --border-light: #32323a;
 
-			.container {
-				background: white;
-				padding: 30px;
-				border-radius: 10px;
-				box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-			}
+            --text-primary:   #f4f4f5;
+            --text-secondary: #a1a1aa;
+            --text-muted:     #52525b;
 
-			h1 {
-				color: #333;
-				margin-bottom: 10px;
-			}
+            --blue:    #3b82f6;
+            --blue-bg: rgba(59,130,246,0.08);
+            --green:   #22c55e;
+            --green-bg:rgba(34,197,94,0.08);
+            --amber:   #f59e0b;
+            --amber-bg:rgba(245,158,11,0.08);
+            --red:     #ef4444;
+            --red-bg:  rgba(239,68,68,0.08);
 
-			.subtitle {
-				color: #666;
-				margin-bottom: 30px;
-			}
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+        }
 
-			.controls {
-				margin-bottom: 30px;
-			}
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
-			button {
-				background-color: #4caf50;
-				color: white;
-				padding: 12px 24px;
-				border: none;
-				border-radius: 5px;
-				cursor: pointer;
-				font-size: 16px;
-				margin-right: 10px;
-				margin-bottom: 10px;
-			}
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            font-size: 14px;
+            -webkit-font-smoothing: antialiased;
+        }
 
-			button:hover {
-				background-color: #45a049;
-			}
+        /* ─── Layout ──────────────────────────────────────────── */
+        .layout { display:flex; min-height:100vh; }
 
-			button:active {
-				transform: scale(0.98);
-			}
+        /* ─── Sidebar ─────────────────────────────────────────── */
+        .sidebar {
+            width: 220px; flex-shrink:0;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction:column;
+            padding: 20px 0;
+            position: fixed; top:0; left:0; bottom:0;
+            z-index: 100;
+        }
 
-			#burst-btn {
-				background-color: #ff9800;
-			}
+        .sidebar-brand {
+            display:flex; align-items:center; gap:10px;
+            padding: 0 18px 20px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 16px;
+        }
 
-			#burst-btn:hover {
-				background-color: #e68900;
-			}
+        .brand-icon {
+            width:30px; height:30px;
+            background: var(--blue);
+            border-radius: var(--radius-sm);
+            display:flex; align-items:center; justify-content:center;
+            flex-shrink:0;
+        }
+        .brand-icon svg { width:16px; height:16px; color:#fff; }
 
-			#clear-btn {
-				background-color: #f44336;
-			}
+        .brand-text { display:flex; flex-direction:column; }
+        .brand-name { font-weight:600; font-size:13px; color:var(--text-primary); line-height:1.2; }
+        .brand-sub  { font-size:11px; color:var(--text-muted); }
 
-			#clear-btn:hover {
-				background-color: #da190b;
-			}
+        .nav-label {
+            font-size:10px; font-weight:600; letter-spacing:0.08em;
+            text-transform:uppercase; color:var(--text-muted);
+            padding:0 18px; margin-bottom:6px;
+        }
 
-			.stats {
-				display: grid;
-				grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-				gap: 15px;
-				margin-bottom: 30px;
-			}
+        .nav-item {
+            display:flex; align-items:center; gap:10px;
+            padding:8px 18px;
+            color:var(--text-secondary);
+            transition:color 0.15s, background 0.15s;
+            font-size:13px; font-weight:450;
+            text-decoration:none;
+        }
+        .nav-item svg { width:15px; height:15px; flex-shrink:0; }
+        .nav-item:hover { background:var(--bg-hover); color:var(--text-primary); }
+        .nav-item.active {
+            background:var(--blue-bg); color:var(--blue);
+            border-right:2px solid var(--blue);
+        }
 
-			.stat-box {
-				background-color: #f8f9fa;
-				padding: 15px;
-				border-radius: 5px;
-				border-left: 4px solid #4caf50;
-			}
+        .nav-divider { height:1px; background:var(--border); margin:8px 0; }
 
-			.stat-label {
-				font-size: 12px;
-				color: #666;
-				text-transform: uppercase;
-				margin-bottom: 5px;
-			}
+        .sidebar-footer {
+            margin-top:auto; padding:16px 18px 0;
+            border-top:1px solid var(--border);
+        }
 
-			.stat-value {
-				font-size: 24px;
-				font-weight: bold;
-				color: #333;
-			}
+        .gh-link {
+            display:flex; align-items:center; gap:8px;
+            font-size:12px; color:var(--text-muted);
+            text-decoration:none; transition:color 0.15s;
+            margin-top:10px;
+        }
+        .gh-link:hover { color:var(--text-secondary); }
+        .gh-link svg { flex-shrink:0; }
 
-			.log-container {
-				background-color: #1e1e1e;
-				color: #d4d4d4;
-				padding: 20px;
-				border-radius: 5px;
-				max-height: 400px;
-				overflow-y: auto;
-				font-family: 'Courier New', monospace;
-				font-size: 13px;
-			}
+        /* ─── Main ────────────────────────────────────────────── */
+        .main { margin-left:220px; flex:1; display:flex; flex-direction:column; }
 
-			.log-entry {
-				margin-bottom: 10px;
-				padding: 8px;
-				border-radius: 3px;
-			}
+        /* ─── Topbar ──────────────────────────────────────────── */
+        .topbar {
+            height:56px; border-bottom:1px solid var(--border);
+            display:flex; align-items:center; justify-content:space-between;
+            padding:0 28px; background:var(--bg-surface);
+            position:sticky; top:0; z-index:50;
+        }
 
-			.log-success {
-				background-color: rgba(76, 175, 80, 0.1);
-				border-left: 3px solid #4caf50;
-			}
+        .topbar-left  { display:flex; align-items:center; gap:8px; }
+        .topbar-right { display:flex; align-items:center; gap:10px; }
+        .topbar-title { font-weight:600; font-size:14px; }
+        .topbar-sep   { color:var(--border-light); margin:0 2px; }
+        .topbar-sub   { font-size:13px; color:var(--text-secondary); }
 
-			.log-error {
-				background-color: rgba(244, 67, 54, 0.1);
-				border-left: 3px solid #f44336;
-			}
+        .badge {
+            display:inline-flex; align-items:center; gap:5px;
+            padding:3px 9px; border-radius:20px;
+            font-size:11px; font-weight:500;
+        }
+        .badge-green { background:var(--green-bg); color:var(--green); }
+        .badge-blue  { background:var(--blue-bg);  color:var(--blue); }
+        .badge-amber { background:var(--amber-bg); color:var(--amber); }
+        .badge-red   { background:var(--red-bg);   color:var(--red); }
 
-			.timestamp {
-				color: #888;
-				font-size: 11px;
-			}
+        /* ─── Content ─────────────────────────────────────────── */
+        .content { padding:28px; flex:1; display:flex; flex-direction:column; gap:20px; }
 
-			.info-box {
-				background-color: #e3f2fd;
-				padding: 15px;
-				border-radius: 5px;
-				border-left: 4px solid #2196f3;
-				margin-bottom: 20px;
-			}
+        /* ─── Info strip ──────────────────────────────────────── */
+        .info-strip {
+            display:flex; align-items:center; gap:14px;
+            background:var(--bg-card);
+            border:1px solid var(--border);
+            border-radius:var(--radius-md);
+            padding:13px 18px;
+        }
 
-			.info-box h3 {
-				margin-top: 0;
-				color: #1976d2;
-			}
+        .info-icon {
+            width:34px; height:34px;
+            background:var(--blue-bg);
+            border-radius:var(--radius-sm);
+            display:flex; align-items:center; justify-content:center;
+            flex-shrink:0;
+        }
+        .info-icon svg { width:16px; height:16px; color:var(--blue); }
 
-			.info-box p {
-				margin: 5px 0;
-				color: #333;
-			}
-		</style>
-	</head>
-	<body>
-		<div class="container">
-			<h1>Smart API Rate Limiter with Adaptive Scaling</h1>
-			<p class="subtitle">Test our Token Bucket rate limiting algorithm</p>
+        .info-title { font-size:13px; font-weight:600; margin-bottom:2px; }
+        .info-desc  { font-size:12px; color:var(--text-muted); }
 
-			<div class="info-box">
-				<h3>How it works</h3>
-				<p><strong>Capacity:</strong> 100 tokens (maximum requests)</p>
-				<p><strong>Refill Rate:</strong> 10 tokens/second</p>
-				<p>
-					Each API request consumes 1 token. When you run out of tokens, you'll
-					receive a 429 error.
-				</p>
-			</div>
+        .info-pills { margin-left:auto; display:flex; gap:8px; }
+        .info-pill {
+            font-size:11px; font-family:'JetBrains Mono', monospace;
+            color:var(--text-secondary);
+            background:var(--bg-hover);
+            border:1px solid var(--border);
+            border-radius:var(--radius-sm);
+            padding:4px 10px;
+        }
 
-			<div class="stats">
-				<div class="stat-box">
-					<div class="stat-label">Total Requests</div>
-					<div class="stat-value" id="total-requests">0</div>
-				</div>
-				<div class="stat-box">
-					<div class="stat-label">Successful</div>
-					<div class="stat-value" id="success-count">0</div>
-				</div>
-				<div class="stat-box">
-					<div class="stat-label">Rate Limited</div>
-					<div class="stat-value" id="error-count">0</div>
-				</div>
-				<div class="stat-box">
-					<div class="stat-label">Tokens Remaining</div>
-					<div class="stat-value" id="tokens-remaining">-</div>
-				</div>
-			</div>
+        /* ─── Stats grid ──────────────────────────────────────── */
+        .stats-grid {
+            display:grid; grid-template-columns:repeat(4,1fr);
+            gap:1px; background:var(--border);
+            border:1px solid var(--border);
+            border-radius:var(--radius-lg); overflow:hidden;
+        }
 
-			<div class="controls">
-				<button id="test-btn">Send Request</button>
-				<button id="burst-btn">Send Burst (10 requests)</button>
-				<button id="clear-btn">Clear Log</button>
-			</div>
+        .stat-card { background:var(--bg-card); padding:20px 22px; transition:background 0.15s; }
+        .stat-card:hover { background:var(--bg-hover); }
 
-			<h3>Request Log</h3>
-			<div class="log-container" id="log"></div>
-		</div>
-		<footer>
-			<div class="footer-content">
-				<p>
-					Built by Meghan31 |
-					<a
-						href="https://github.com/Meghan31"
-						target="_blank"
-						rel="noopener noreferrer"
-						>GitHub</a
-					>
-					|
-					<a
-						href="https://www.meghan31.me/"
-						target="_blank"
-						rel="noopener noreferrer"
-						>Portfolio</a
-					>
-					|
-					<a
-						href="https://www.linkedin.com/in/meghan31/"
-						target="_blank"
-						rel="noopener noreferrer"
-						>LinkedIn</a
-					>
-					| &copy; 2024 Smart API Rate Limiter
-				</p>
-			</div>
-		</footer>
+        .stat-label {
+            display:flex; align-items:center; gap:7px;
+            font-size:11px; font-weight:500; color:var(--text-muted);
+            text-transform:uppercase; letter-spacing:0.06em;
+            margin-bottom:12px;
+        }
+        .stat-label svg { width:13px; height:13px; }
 
-		<style>
-			footer {
-				margin-top: 30px;
-				background: #f5f5f5;
-				color: #333;
-				padding: 12px 20px;
-				border-top: 1px solid #ccc;
-			}
+        .stat-value {
+            font-size:26px; font-weight:700;
+            font-variant-numeric:tabular-nums;
+            line-height:1; margin-bottom:6px;
+            letter-spacing:-0.02em;
+        }
+        .stat-value.blue  { color:var(--blue); }
+        .stat-value.green { color:var(--green); }
+        .stat-value.amber { color:var(--amber); }
+        .stat-value.white { color:var(--text-primary); }
 
-			.footer-content {
-				max-width: 800px;
-				margin: 0 auto;
-				font-size: 12px;
-			}
+        .stat-sub { font-size:11px; color:var(--text-muted); }
 
-			.footer-content p {
-				margin: 0;
-				letter-spacing: 1px;
-			}
+        /* ─── Tester grid ─────────────────────────────────────── */
+        .tester-grid {
+            display:grid; grid-template-columns:268px 1fr;
+            gap:16px; flex:1;
+        }
 
-			.footer-content a {
-				color: #333;
-				text-decoration: underline;
-				margin: 0 4px;
-				transition: all 0.3s ease;
-				border-radius: 50% 50% 45% 55% / 55% 45% 50% 50%;
-				padding: 2px 6px;
-			}
+        /* ─── Card ────────────────────────────────────────────── */
+        .card {
+            background:var(--bg-card); border:1px solid var(--border);
+            border-radius:var(--radius-lg); overflow:hidden;
+            display:flex; flex-direction:column;
+        }
 
-			.footer-content a:hover {
-				background-color: #ddd;
-				transform: rotate(2deg) scale(1.05);
-			}
-		</style>
+        .card-header {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:15px 20px; border-bottom:1px solid var(--border);
+            flex-shrink:0;
+        }
 
-		<script>
-			let totalRequests = 0;
-			let successCount = 0;
-			let errorCount = 0;
+        .card-title {
+            font-size:13px; font-weight:600;
+            display:flex; align-items:center; gap:8px;
+        }
+        .card-title svg { width:14px; height:14px; color:var(--text-muted); }
 
-			function updateStats() {
-				document.getElementById('total-requests').textContent = totalRequests;
-				document.getElementById('success-count').textContent = successCount;
-				document.getElementById('error-count').textContent = errorCount;
-			}
+        .card-body { padding:18px; flex:1; }
 
-			function addLog(message, isError = false) {
-				const logContainer = document.getElementById('log');
-				const entry = document.createElement('div');
-				entry.className = `log-entry ${isError ? 'log-error' : 'log-success'}`;
+        /* ─── Controls ────────────────────────────────────────── */
+        .ctrl-list { display:flex; flex-direction:column; gap:9px; }
 
-				const timestamp = new Date().toLocaleTimeString();
-				entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+        .ctrl-btn {
+            display:flex; align-items:center; gap:10px;
+            padding:11px 14px; border-radius:var(--radius-md);
+            font-size:13px; font-weight:500; cursor:pointer;
+            transition:all 0.15s; border:1px solid transparent;
+            font-family:inherit; width:100%; text-align:left;
+        }
+        .ctrl-btn svg { width:15px; height:15px; flex-shrink:0; }
+        .ctrl-btn:active { transform:scale(0.98); }
+        .ctrl-btn:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
 
-				logContainer.insertBefore(entry, logContainer.firstChild);
-			}
+        .ctrl-primary {
+            background:var(--blue-bg); border-color:rgba(59,130,246,0.22); color:var(--blue);
+        }
+        .ctrl-primary:hover:not(:disabled) {
+            background:rgba(59,130,246,0.14); border-color:rgba(59,130,246,0.38);
+        }
 
-			async function sendRequest() {
-				totalRequests++;
-				updateStats();
+        .ctrl-amber {
+            background:var(--amber-bg); border-color:rgba(245,158,11,0.22); color:var(--amber);
+        }
+        .ctrl-amber:hover:not(:disabled) {
+            background:rgba(245,158,11,0.14); border-color:rgba(245,158,11,0.38);
+        }
 
-				try {
-					const response = await fetch('/api/test');
-					const limit = response.headers.get('X-RateLimit-Limit');
-					const remaining = response.headers.get('X-RateLimit-Remaining');
+        .ctrl-ghost {
+            background:transparent; border-color:var(--border); color:var(--text-secondary);
+        }
+        .ctrl-ghost:hover:not(:disabled) {
+            background:var(--bg-hover); color:var(--text-primary); border-color:var(--border-light);
+        }
 
-					document.getElementById('tokens-remaining').textContent =
-						remaining || '-';
+        .ctrl-sep { height:1px; background:var(--border); margin:4px 0; }
 
-					if (response.ok) {
-						const data = await response.json();
-						successCount++;
-						updateStats();
-						addLog(
-							`SUCCESS: ${data.message} | Remaining: ${remaining}/${limit}`,
-							false
-						);
-					} else if (response.status === 429) {
-						const data = await response.json();
-						errorCount++;
-						updateStats();
-						addLog(
-							`RATE LIMITED: ${data.message} | Remaining: ${remaining}/${limit}`,
-							true
-						);
-					} else {
-						errorCount++;
-						updateStats();
-						addLog(`ERROR ${response.status}: ${response.statusText}`, true);
-					}
-				} catch (error) {
-					errorCount++;
-					updateStats();
-					addLog(`NETWORK ERROR: ${error.message}`, true);
-				}
-			}
+        .config-section { margin-top:20px; }
+        .config-label {
+            font-size:10px; font-weight:600; letter-spacing:0.07em;
+            text-transform:uppercase; color:var(--text-muted); margin-bottom:10px;
+        }
 
-			async function sendBurst() {
-				addLog('--- SENDING BURST OF 10 REQUESTS ---', false);
-				for (let i = 0; i < 10; i++) {
-					await sendRequest();
-					// Small delay to see requests in sequence
-					await new Promise((resolve) => setTimeout(resolve, 50));
-				}
-			}
+        .config-row {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:7px 0; border-bottom:1px solid var(--border);
+            font-size:12px; color:var(--text-secondary);
+        }
+        .config-row:last-child { border-bottom:none; }
+        .config-val {
+            font-family:'JetBrains Mono', monospace;
+            font-size:11px; color:var(--text-muted);
+        }
 
-			function clearLog() {
-				document.getElementById('log').innerHTML = '';
-				totalRequests = 0;
-				successCount = 0;
-				errorCount = 0;
-				updateStats();
-				addLog('Log cleared', false);
-			}
+        /* ─── Terminal ────────────────────────────────────────── */
+        .terminal {
+            background:var(--bg-base);
+            border-top:1px solid var(--border);
+            font-family:'JetBrains Mono', monospace;
+            font-size:12px; line-height:1.7;
+            padding:14px 16px;
+            overflow-y:auto; flex:1;
+            min-height:420px;
+        }
 
-			document
-				.getElementById('test-btn')
-				.addEventListener('click', sendRequest);
-			document.getElementById('burst-btn').addEventListener('click', sendBurst);
-			document.getElementById('clear-btn').addEventListener('click', clearLog);
+        .log-line {
+            display:flex; gap:10px; align-items:baseline;
+            padding:4px 8px;
+            border-radius:4px; margin-bottom:2px;
+            border-left:2px solid transparent;
+        }
 
-			// Initial log message
-			addLog('Ready to test! Click "Send Request" to start.', false);
-		</script>
-	</body>
+        .log-line.success      { border-left-color:var(--green); background:rgba(34,197,94,0.04); }
+        .log-line.rate-limited { border-left-color:var(--amber); background:rgba(245,158,11,0.04); }
+        .log-line.error        { border-left-color:var(--red);   background:rgba(239,68,68,0.04); }
+        .log-line.info         { border-left-color:var(--border-light); }
+
+        .log-ts   { color:var(--text-muted); font-size:10px; flex-shrink:0; padding-top:1px; min-width:62px; }
+        .log-code { font-weight:600; flex-shrink:0; min-width:34px; }
+
+        .log-line.success .log-code      { color:var(--green); }
+        .log-line.rate-limited .log-code { color:var(--amber); }
+        .log-line.error .log-code        { color:var(--red); }
+        .log-line.info .log-code         { color:var(--text-muted); }
+
+        .log-text { color:var(--text-secondary); flex:1; }
+        .log-meta { color:var(--text-muted); font-size:10px; flex-shrink:0; }
+
+        /* ─── Spinner ─────────────────────────────────────────── */
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .spinning { animation:spin 0.7s linear infinite; }
+
+        /* ─── Scrollbar ───────────────────────────────────────── */
+        ::-webkit-scrollbar { width:6px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:var(--border-light); border-radius:99px; }
+
+        /* ─── Responsive ──────────────────────────────────────── */
+        @media (max-width:960px) {
+            .tester-grid { grid-template-columns:1fr; }
+            .info-pills  { display:none; }
+        }
+        @media (max-width:768px) {
+            .sidebar { display:none; }
+            .main    { margin-left:0; }
+            .stats-grid { grid-template-columns:repeat(2,1fr); }
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/>
+                    <path d="M2 12l10 5 10-5"/>
+                </svg>
+            </div>
+            <div class="brand-text">
+                <span class="brand-name">RateLimiter</span>
+                <span class="brand-sub">v1.0 · Token Bucket</span>
+            </div>
+        </div>
+
+        <div class="nav-label">Pages</div>
+
+        <a class="nav-item active" href="/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            API Tester
+        </a>
+
+        <a class="nav-item" href="/monitoring.html">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7"/>
+                <rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/>
+            </svg>
+            Monitoring
+        </a>
+
+        <div class="nav-divider"></div>
+        <div class="nav-label">Live Data</div>
+
+        <a class="nav-item" href="/stats.html">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="20" x2="12" y2="10"/>
+                <line x1="18" y1="20" x2="18" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="16"/>
+            </svg>
+            Stats
+        </a>
+
+        <a class="nav-item" href="/health.html">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+            Health
+        </a>
+
+        <a class="nav-item" href="/metrics.html">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            Metrics
+        </a>
+
+        <a class="nav-item" href="/users.html">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            Users
+        </a>
+
+        <div class="sidebar-footer">
+            <a href="https://github.com/Meghan31" target="_blank" rel="noopener" class="gh-link">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+                Meghan31
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main -->
+    <div class="main">
+
+        <!-- Topbar -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <span class="topbar-title">API Tester</span>
+                <span class="topbar-sep">/</span>
+                <span class="topbar-sub">Token Bucket</span>
+            </div>
+            <div class="topbar-right">
+                <span class="badge badge-blue">100 tok capacity</span>
+                <span class="badge badge-green">10 tok/s refill</span>
+            </div>
+        </header>
+
+        <!-- Content -->
+        <div class="content">
+
+            <!-- Info strip -->
+            <div class="info-strip">
+                <div class="info-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="info-title">Token Bucket Algorithm</div>
+                    <div class="info-desc">Each request consumes 1 token. When the bucket empties, requests receive HTTP 429.</div>
+                </div>
+                <div class="info-pills">
+                    <span class="info-pill">capacity: 100</span>
+                    <span class="info-pill">refill: 10/s</span>
+                    <span class="info-pill">cost: 1 tok/req</span>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="20" x2="12" y2="10"/>
+                            <line x1="18" y1="20" x2="18" y2="4"/>
+                            <line x1="6" y1="20" x2="6" y2="16"/>
+                        </svg>
+                        Total Sent
+                    </div>
+                    <div class="stat-value white" id="total-requests">0</div>
+                    <div class="stat-sub">requests fired</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Successful
+                    </div>
+                    <div class="stat-value green" id="success-count">0</div>
+                    <div class="stat-sub">HTTP 200</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                            <line x1="12" y1="9" x2="12" y2="13"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                        Rate Limited
+                    </div>
+                    <div class="stat-value amber" id="error-count">0</div>
+                    <div class="stat-sub">HTTP 429</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        Tokens Left
+                    </div>
+                    <div class="stat-value blue" id="tokens-remaining">—</div>
+                    <div class="stat-sub">in your bucket</div>
+                </div>
+            </div>
+
+            <!-- Tester grid -->
+            <div class="tester-grid">
+
+                <!-- Controls -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polygon points="10 8 16 12 10 16 10 8"/>
+                            </svg>
+                            Controls
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="ctrl-list">
+                            <button class="ctrl-btn ctrl-primary" id="test-btn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                                </svg>
+                                Send Request
+                            </button>
+
+                            <button class="ctrl-btn ctrl-amber" id="burst-btn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                                </svg>
+                                Burst — 10 requests
+                            </button>
+
+                            <div class="ctrl-sep"></div>
+
+                            <button class="ctrl-btn ctrl-ghost" id="clear-btn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                                </svg>
+                                Clear Log
+                            </button>
+                        </div>
+
+                        <div class="config-section">
+                            <div class="config-label">Config</div>
+                            <div class="config-row">
+                                <span>Endpoint</span>
+                                <span class="config-val">GET /api/test</span>
+                            </div>
+                            <div class="config-row">
+                                <span>Algorithm</span>
+                                <span class="config-val">Token Bucket</span>
+                            </div>
+                            <div class="config-row">
+                                <span>Capacity</span>
+                                <span class="config-val">100 tokens</span>
+                            </div>
+                            <div class="config-row">
+                                <span>Refill rate</span>
+                                <span class="config-val">10 / sec</span>
+                            </div>
+                            <div class="config-row">
+                                <span>Cost / req</span>
+                                <span class="config-val">1 token</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Log terminal -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="4 17 10 11 4 5"/>
+                                <line x1="12" y1="19" x2="20" y2="19"/>
+                            </svg>
+                            Request Log
+                        </div>
+                        <span class="badge badge-blue" id="log-count">0 entries</span>
+                    </div>
+                    <div class="terminal" id="log">
+                        <div class="log-line info">
+                            <span class="log-ts">--:--:--</span>
+                            <span class="log-code">SYS</span>
+                            <span class="log-text">Ready — send a request or burst to begin.</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let totalRequests = 0;
+    let successCount  = 0;
+    let errorCount    = 0;
+    let logEntries    = 0;
+
+    function updateStats(remaining) {
+        document.getElementById('total-requests').textContent = totalRequests;
+        document.getElementById('success-count').textContent  = successCount;
+        document.getElementById('error-count').textContent    = errorCount;
+        if (remaining !== undefined) {
+            document.getElementById('tokens-remaining').textContent = remaining;
+        }
+        document.getElementById('log-count').textContent =
+            logEntries + ' entr' + (logEntries === 1 ? 'y' : 'ies');
+    }
+
+    function ts() {
+        return new Date().toLocaleTimeString([], { hour12: false });
+    }
+
+    function addLog(type, code, text, meta) {
+        const log = document.getElementById('log');
+        logEntries++;
+
+        const line = document.createElement('div');
+        line.className = `log-line ${type}`;
+        line.innerHTML =
+            `<span class="log-ts">${ts()}</span>` +
+            `<span class="log-code">${code}</span>` +
+            `<span class="log-text">${text}</span>` +
+            (meta ? `<span class="log-meta">${meta}</span>` : '');
+
+        log.insertBefore(line, log.firstChild);
+        while (log.children.length > 300) log.removeChild(log.lastChild);
+
+        updateStats();
+    }
+
+    async function sendRequest() {
+        totalRequests++;
+        updateStats();
+
+        try {
+            const res       = await fetch('/api/test');
+            const limit     = res.headers.get('X-RateLimit-Limit');
+            const remaining = res.headers.get('X-RateLimit-Remaining');
+            const meta      = remaining !== null ? `${remaining}/${limit} tok` : '';
+
+            if (res.ok) {
+                successCount++;
+                addLog('success', '200', 'Request successful', meta);
+            } else if (res.status === 429) {
+                const data = await res.json().catch(() => ({}));
+                errorCount++;
+                addLog('rate-limited', '429', data.message || 'Rate limit exceeded', meta);
+            } else {
+                errorCount++;
+                addLog('error', res.status, res.statusText || 'Unexpected error', '');
+            }
+
+            if (remaining !== null) {
+                document.getElementById('tokens-remaining').textContent = remaining;
+            }
+        } catch (err) {
+            errorCount++;
+            addLog('error', 'ERR', err.message, '');
+            updateStats();
+        }
+    }
+
+    async function sendBurst() {
+        const btn = document.getElementById('burst-btn');
+        btn.disabled = true;
+        const orig = btn.innerHTML;
+        btn.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 class="spinning" style="width:15px;height:15px;flex-shrink:0;">
+                <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            Sending burst...`;
+
+        addLog('info', 'SYS', 'Burst started — 10 requests', '');
+
+        for (let i = 0; i < 10; i++) {
+            await sendRequest();
+            await new Promise(r => setTimeout(r, 60));
+        }
+
+        addLog('info', 'SYS', 'Burst complete', '');
+        btn.disabled = false;
+        btn.innerHTML = orig;
+    }
+
+    function clearLog() {
+        const log = document.getElementById('log');
+        log.innerHTML = '';
+        logEntries = 0;
+        totalRequests = 0;
+        successCount  = 0;
+        errorCount    = 0;
+        document.getElementById('tokens-remaining').textContent = '—';
+        updateStats();
+        addLog('info', 'SYS', 'Log cleared', '');
+    }
+
+    document.getElementById('test-btn').addEventListener('click', sendRequest);
+    document.getElementById('burst-btn').addEventListener('click', sendBurst);
+    document.getElementById('clear-btn').addEventListener('click', clearLog);
+</script>
+</body>
 </html>

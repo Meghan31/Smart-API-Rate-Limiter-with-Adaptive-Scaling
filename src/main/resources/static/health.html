@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rate Limiter — Health</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base:#0c0c0e; --bg-surface:#111114; --bg-card:#18181c; --bg-hover:#1f1f25;
+            --border:#27272d; --border-light:#32323a;
+            --text-primary:#f4f4f5; --text-secondary:#a1a1aa; --text-muted:#52525b;
+            --blue:#3b82f6; --blue-bg:rgba(59,130,246,.08);
+            --green:#22c55e; --green-bg:rgba(34,197,94,.08);
+            --amber:#f59e0b; --amber-bg:rgba(245,158,11,.08);
+            --red:#ef4444; --red-bg:rgba(239,68,68,.08);
+            --radius-sm:6px; --radius-md:10px; --radius-lg:14px;
+        }
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',sans-serif;background:var(--bg-base);color:var(--text-primary);min-height:100vh;font-size:14px;-webkit-font-smoothing:antialiased}
+        .layout{display:flex;min-height:100vh}
+
+        /* Sidebar */
+        .sidebar{width:220px;flex-shrink:0;background:var(--bg-surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 0;position:fixed;top:0;left:0;bottom:0;z-index:100}
+        .sidebar-brand{display:flex;align-items:center;gap:10px;padding:0 18px 20px;border-bottom:1px solid var(--border);margin-bottom:16px}
+        .brand-icon{width:30px;height:30px;background:var(--blue);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+        .brand-icon svg{width:16px;height:16px;color:#fff}
+        .brand-text{display:flex;flex-direction:column}
+        .brand-name{font-weight:600;font-size:13px;color:var(--text-primary);line-height:1.2}
+        .brand-sub{font-size:11px;color:var(--text-muted)}
+        .nav-label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:0 18px;margin-bottom:6px}
+        .nav-item{display:flex;align-items:center;gap:10px;padding:8px 18px;color:var(--text-secondary);transition:color .15s,background .15s;font-size:13px;font-weight:450;text-decoration:none}
+        .nav-item svg{width:15px;height:15px;flex-shrink:0}
+        .nav-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+        .nav-item.active{background:var(--blue-bg);color:var(--blue);border-right:2px solid var(--blue)}
+        .nav-divider{height:1px;background:var(--border);margin:8px 0}
+        .sidebar-footer{margin-top:auto;padding:16px 18px 0;border-top:1px solid var(--border)}
+        .live-badge{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary)}
+        .live-dot{width:7px;height:7px;background:var(--green);border-radius:50%;animation:livepulse 2s ease-in-out infinite;flex-shrink:0}
+        @keyframes livepulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{opacity:.7;box-shadow:0 0 0 4px rgba(34,197,94,0)}}
+        .gh-link{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);text-decoration:none;transition:color .15s;margin-top:10px}
+        .gh-link:hover{color:var(--text-secondary)}
+
+        /* Main */
+        .main{margin-left:220px;flex:1;display:flex;flex-direction:column}
+        .topbar{height:56px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:var(--bg-surface);position:sticky;top:0;z-index:50}
+        .topbar-left{display:flex;align-items:center;gap:8px}
+        .topbar-right{display:flex;align-items:center;gap:10px}
+        .topbar-title{font-weight:600;font-size:14px}
+        .topbar-sep{color:var(--border-light);margin:0 2px}
+        .topbar-sub{font-size:13px;color:var(--text-secondary)}
+        .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500}
+        .badge-green{background:var(--green-bg);color:var(--green)}
+        .badge-blue{background:var(--blue-bg);color:var(--blue)}
+        .badge-red{background:var(--red-bg);color:var(--red)}
+        .topbar-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-secondary);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;font-family:inherit}
+        .topbar-btn:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--border-light)}
+        .topbar-btn svg{width:13px;height:13px}
+
+        .content{padding:28px;flex:1;display:flex;flex-direction:column;gap:20px}
+
+        /* Status banner */
+        .status-banner{display:flex;align-items:center;gap:16px;padding:18px 24px;border-radius:var(--radius-lg);border:1px solid}
+        .status-banner.up{background:var(--green-bg);border-color:rgba(34,197,94,.2)}
+        .status-banner.down{background:var(--red-bg);border-color:rgba(239,68,68,.2)}
+        .banner-icon{width:40px;height:40px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+        .status-banner.up .banner-icon{background:rgba(34,197,94,.15)}
+        .status-banner.down .banner-icon{background:rgba(239,68,68,.15)}
+        .banner-icon svg{width:20px;height:20px}
+        .status-banner.up .banner-icon svg{color:var(--green)}
+        .status-banner.down .banner-icon svg{color:var(--red)}
+        .banner-title{font-size:16px;font-weight:700;margin-bottom:2px}
+        .status-banner.up .banner-title{color:var(--green)}
+        .status-banner.down .banner-title{color:var(--red)}
+        .banner-sub{font-size:12px;color:var(--text-muted)}
+        .banner-ts{margin-left:auto;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-muted)}
+
+        /* Health grid */
+        .health-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+
+        /* Card */
+        .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+        .card-header{display:flex;align-items:center;justify-content:space-between;padding:15px 20px;border-bottom:1px solid var(--border)}
+        .card-title{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+        .card-title svg{width:14px;height:14px;color:var(--text-muted)}
+        .card-body{padding:20px;display:flex;flex-direction:column;gap:14px}
+
+        /* Field rows */
+        .field-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)}
+        .field-row:last-child{border-bottom:none}
+        .field-key{font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:7px}
+        .field-key svg{width:12px;height:12px}
+        .field-val{font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--text-secondary);font-weight:500;text-align:right}
+
+        /* Status dot */
+        .sdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+        .sdot.green{background:var(--green);box-shadow:0 0 6px rgba(34,197,94,.5)}
+        .sdot.red{background:var(--red);box-shadow:0 0 6px rgba(239,68,68,.5)}
+        .sdot.amber{background:var(--amber);box-shadow:0 0 6px rgba(245,158,11,.5)}
+
+        /* Progress bar */
+        .prog-wrap{display:flex;flex-direction:column;gap:6px}
+        .prog-label-row{display:flex;justify-content:space-between;font-size:11px}
+        .prog-label{color:var(--text-muted)}
+        .prog-pct{font-family:'JetBrains Mono',monospace;color:var(--text-secondary);font-weight:500}
+        .prog-track{height:6px;background:var(--bg-hover);border-radius:99px;overflow:hidden}
+        .prog-fill{height:100%;border-radius:99px;transition:width .4s ease}
+        .prog-fill.green{background:var(--green)}
+        .prog-fill.amber{background:var(--amber)}
+        .prog-fill.red{background:var(--red)}
+
+        /* Latency chip */
+        .latency-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--radius-sm);border:1px solid;font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:500}
+        .latency-chip.fast{background:var(--green-bg);border-color:rgba(34,197,94,.2);color:var(--green)}
+        .latency-chip.mid{background:var(--amber-bg);border-color:rgba(245,158,11,.2);color:var(--amber)}
+        .latency-chip.slow{background:var(--red-bg);border-color:rgba(239,68,68,.2);color:var(--red)}
+
+        /* Processor dots */
+        .proc-dots{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+        .proc-dot{width:10px;height:10px;border-radius:2px;background:var(--blue);opacity:.7}
+
+        /* Loading */
+        .loading-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px}
+        .spinner{width:28px;height:28px;border:2px solid var(--border-light);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .loading-text{font-size:13px;color:var(--text-muted)}
+
+        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:99px}
+        @media(max-width:900px){.health-grid{grid-template-columns:1fr}}
+        @media(max-width:768px){.sidebar{display:none}.main{margin-left:0}}
+    </style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+    <div class="sidebar-brand">
+        <div class="brand-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <div class="brand-text">
+            <span class="brand-name">RateLimiter</span>
+            <span class="brand-sub">v1.0 · Token Bucket</span>
+        </div>
+    </div>
+    <div class="nav-label">Pages</div>
+    <a class="nav-item" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>API Tester</a>
+    <a class="nav-item" href="/monitoring.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Monitoring</a>
+    <div class="nav-divider"></div>
+    <div class="nav-label">Live Data</div>
+    <a class="nav-item" href="/stats.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>Stats</a>
+    <a class="nav-item active" href="/health.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Health</a>
+    <a class="nav-item" href="/metrics.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Metrics</a>
+    <a class="nav-item" href="/users.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Users</a>
+    <div class="sidebar-footer">
+        <div class="live-badge"><div class="live-dot"></div><span>Live — 10s refresh</span></div>
+        <a href="https://github.com/Meghan31" target="_blank" rel="noopener" class="gh-link">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            Meghan31
+        </a>
+    </div>
+</nav>
+
+<div class="main">
+    <header class="topbar">
+        <div class="topbar-left">
+            <span class="topbar-title">Health</span>
+            <span class="topbar-sep">/</span>
+            <span class="topbar-sub">System Status</span>
+        </div>
+        <div class="topbar-right">
+            <span class="badge badge-green" id="systemBadge">Checking...</span>
+            <button class="topbar-btn" onclick="fetchData()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <div class="content">
+        <div class="loading-screen" id="loadingScreen">
+            <div class="spinner"></div>
+            <p class="loading-text">Checking system health...</p>
+        </div>
+
+        <div id="dashboard" style="display:none;flex-direction:column;gap:20px;">
+
+            <!-- Status banner -->
+            <div class="status-banner up" id="statusBanner">
+                <div class="banner-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="bannerIcon">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="banner-title" id="bannerTitle">System Operational</div>
+                    <div class="banner-sub">All services running normally</div>
+                </div>
+                <div class="banner-ts" id="bannerTs">—</div>
+            </div>
+
+            <!-- 2x2 health cards -->
+            <div class="health-grid">
+
+                <!-- Redis -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                            Redis
+                        </div>
+                        <span id="redisBadge" class="badge badge-green">UP</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="field-row">
+                            <span class="field-key"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Latency</span>
+                            <span id="redisLatency" class="latency-chip fast">— ms</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-key">Memory used</span>
+                            <span class="field-val" id="redisMemory">—</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-key">Connected clients</span>
+                            <span class="field-val" id="redisClients">—</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-key">Version</span>
+                            <span class="field-val" id="redisVersion">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- JVM Memory -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                            JVM Memory
+                        </div>
+                        <span class="badge badge-blue" id="heapPctBadge">—</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="prog-wrap">
+                            <div class="prog-label-row">
+                                <span class="prog-label">Heap usage</span>
+                                <span class="prog-pct" id="heapPct">—</span>
+                            </div>
+                            <div class="prog-track"><div class="prog-fill green" id="heapBar" style="width:0%"></div></div>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-key">Heap used</span>
+                            <span class="field-val" id="heapUsed">—</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-key">Heap max</span>
+                            <span class="field-val" id="heapMax">—</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-key">Heap committed</span>
+                            <span class="field-val" id="heapCommitted">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                            System
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="field-row">
+                            <span class="field-key">OS</span>
+                            <span class="field-val" id="osName">—</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-key">Version</span>
+                            <span class="field-val" id="osVersion">—</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-key">Load average</span>
+                            <span class="field-val" id="loadAvg">—</span>
+                        </div>
+                        <div class="field-row" style="align-items:flex-start;padding-top:10px">
+                            <span class="field-key">Processors</span>
+                            <div class="proc-dots" id="procDots"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rate Limiter -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                            Rate Limiter
+                        </div>
+                        <span class="badge badge-green" id="rlBadge">OPERATIONAL</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="field-row">
+                            <span class="field-key"><div class="sdot green" id="rlDot" style="display:inline-block;margin-right:4px"></div>Status</span>
+                            <span class="field-val" id="rlStatus">—</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-key">Total requests</span>
+                            <span class="field-val" id="rlTotal">—</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-key">Rate limited</span>
+                            <span class="field-val" id="rlLimited">—</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-key">Rate limit rate</span>
+                            <span class="field-val" id="rlRate">—</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-key">Active users</span>
+                            <span class="field-val" id="rlUsers">—</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+    async function fetchData() {
+        try {
+            const d = await fetch('/api/monitoring/health-detailed').then(r => r.json());
+            document.getElementById('loadingScreen').style.display = 'none';
+            const dash = document.getElementById('dashboard');
+            dash.style.display = 'flex';
+
+            const isUp = d.status === 'UP';
+
+            // Banner
+            const banner = document.getElementById('statusBanner');
+            banner.className = 'status-banner ' + (isUp ? 'up' : 'down');
+            document.getElementById('bannerTitle').textContent = isUp ? 'System Operational' : 'System Degraded';
+            document.getElementById('bannerTs').textContent = new Date(d.timestamp).toLocaleString();
+            const sysBadge = document.getElementById('systemBadge');
+            sysBadge.textContent = d.status;
+            sysBadge.className = 'badge ' + (isUp ? 'badge-green' : 'badge-red');
+
+            // Redis
+            const r = d.redis || {};
+            const redisUp = r.status === 'UP';
+            const rBadge = document.getElementById('redisBadge');
+            rBadge.textContent = r.status || '—';
+            rBadge.className = 'badge ' + (redisUp ? 'badge-green' : 'badge-red');
+
+            const latMs = r.latencyMs ?? 0;
+            const latEl = document.getElementById('redisLatency');
+            latEl.textContent = latMs + ' ms';
+            latEl.className = 'latency-chip ' + (latMs < 10 ? 'fast' : latMs < 100 ? 'mid' : 'slow');
+
+            document.getElementById('redisMemory').textContent  = r.usedMemory || '—';
+            document.getElementById('redisClients').textContent = r.connectedClients || '—';
+            document.getElementById('redisVersion').textContent = r.version || '—';
+
+            // Memory
+            const m = d.memory || {};
+            const heapPct = parseFloat(m.heapUsagePercent) || 0;
+            const heapBar = document.getElementById('heapBar');
+            heapBar.style.width = heapPct + '%';
+            heapBar.className = 'prog-fill ' + (heapPct < 60 ? 'green' : heapPct < 85 ? 'amber' : 'red');
+            document.getElementById('heapPct').textContent    = m.heapUsagePercent || '—';
+            document.getElementById('heapPctBadge').textContent = m.heapUsagePercent || '—';
+            document.getElementById('heapUsed').textContent   = (m.heapUsedMB || 0) + ' MB';
+            document.getElementById('heapMax').textContent    = (m.heapMaxMB || 0) + ' MB';
+            document.getElementById('heapCommitted').textContent = (m.heapCommittedMB || 0) + ' MB';
+
+            // System
+            const s = d.system || {};
+            document.getElementById('osName').textContent    = s.osName || '—';
+            document.getElementById('osVersion').textContent = s.osVersion || '—';
+            document.getElementById('loadAvg').textContent   = s.systemLoadAverage || '—';
+
+            const procs = parseInt(s.availableProcessors) || 0;
+            document.getElementById('procDots').innerHTML =
+                Array.from({ length: procs }, () => '<div class="proc-dot"></div>').join('');
+
+            // Rate Limiter
+            const rl = d.rateLimiter || {};
+            document.getElementById('rlStatus').textContent  = rl.status || '—';
+            document.getElementById('rlTotal').textContent   = Number(rl.totalRequests || 0).toLocaleString();
+            document.getElementById('rlLimited').textContent = Number(rl.rateLimitedRequests || 0).toLocaleString();
+            document.getElementById('rlRate').textContent    = rl.rateLimitRate || '—';
+            document.getElementById('rlUsers').textContent   = rl.activeUsers ?? '—';
+
+        } catch (e) {
+            console.error(e);
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'flex';
+            const banner = document.getElementById('statusBanner');
+            banner.className = 'status-banner down';
+            document.getElementById('bannerTitle').textContent = 'Unable to reach server';
+            document.getElementById('systemBadge').textContent = 'ERROR';
+            document.getElementById('systemBadge').className = 'badge badge-red';
+        }
+    }
+
+    window.addEventListener('load', () => {
+        fetchData();
+        setInterval(fetchData, 10000);
+    });
+</script>
+</body>
+</html>

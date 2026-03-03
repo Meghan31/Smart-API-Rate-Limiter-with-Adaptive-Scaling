@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rate Limiter — Stats</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-base:      #0c0c0e;
+            --bg-surface:   #111114;
+            --bg-card:      #18181c;
+            --bg-hover:     #1f1f25;
+            --border:       #27272d;
+            --border-light: #32323a;
+            --text-primary:   #f4f4f5;
+            --text-secondary: #a1a1aa;
+            --text-muted:     #52525b;
+            --blue:    #3b82f6; --blue-bg: rgba(59,130,246,0.08);
+            --green:   #22c55e; --green-bg:rgba(34,197,94,0.08);
+            --amber:   #f59e0b; --amber-bg:rgba(245,158,11,0.08);
+            --red:     #ef4444; --red-bg:  rgba(239,68,68,0.08);
+            --radius-sm:6px; --radius-md:10px; --radius-lg:14px;
+        }
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',sans-serif;background:var(--bg-base);color:var(--text-primary);min-height:100vh;font-size:14px;-webkit-font-smoothing:antialiased}
+        .layout{display:flex;min-height:100vh}
+
+        /* Sidebar */
+        .sidebar{width:220px;flex-shrink:0;background:var(--bg-surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 0;position:fixed;top:0;left:0;bottom:0;z-index:100}
+        .sidebar-brand{display:flex;align-items:center;gap:10px;padding:0 18px 20px;border-bottom:1px solid var(--border);margin-bottom:16px}
+        .brand-icon{width:30px;height:30px;background:var(--blue);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+        .brand-icon svg{width:16px;height:16px;color:#fff}
+        .brand-text{display:flex;flex-direction:column}
+        .brand-name{font-weight:600;font-size:13px;color:var(--text-primary);line-height:1.2}
+        .brand-sub{font-size:11px;color:var(--text-muted)}
+        .nav-label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:0 18px;margin-bottom:6px}
+        .nav-item{display:flex;align-items:center;gap:10px;padding:8px 18px;color:var(--text-secondary);transition:color .15s,background .15s;font-size:13px;font-weight:450;text-decoration:none}
+        .nav-item svg{width:15px;height:15px;flex-shrink:0}
+        .nav-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+        .nav-item.active{background:var(--blue-bg);color:var(--blue);border-right:2px solid var(--blue)}
+        .nav-divider{height:1px;background:var(--border);margin:8px 0}
+        .sidebar-footer{margin-top:auto;padding:16px 18px 0;border-top:1px solid var(--border)}
+        .live-badge{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary)}
+        .live-dot{width:7px;height:7px;background:var(--green);border-radius:50%;animation:livepulse 2s ease-in-out infinite;flex-shrink:0}
+        @keyframes livepulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{opacity:.7;box-shadow:0 0 0 4px rgba(34,197,94,0)}}
+        .gh-link{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);text-decoration:none;transition:color .15s;margin-top:10px}
+        .gh-link:hover{color:var(--text-secondary)}
+
+        /* Main */
+        .main{margin-left:220px;flex:1;display:flex;flex-direction:column}
+        .topbar{height:56px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:var(--bg-surface);position:sticky;top:0;z-index:50}
+        .topbar-left{display:flex;align-items:center;gap:8px}
+        .topbar-right{display:flex;align-items:center;gap:10px}
+        .topbar-title{font-weight:600;font-size:14px}
+        .topbar-sep{color:var(--border-light);margin:0 2px}
+        .topbar-sub{font-size:13px;color:var(--text-secondary)}
+        .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500}
+        .badge-green{background:var(--green-bg);color:var(--green)}
+        .badge-blue{background:var(--blue-bg);color:var(--blue)}
+        .badge-amber{background:var(--amber-bg);color:var(--amber)}
+        .topbar-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-secondary);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;font-family:inherit}
+        .topbar-btn:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--border-light)}
+        .topbar-btn svg{width:13px;height:13px}
+
+        /* Content */
+        .content{padding:28px;flex:1;display:flex;flex-direction:column;gap:20px}
+
+        /* Stats grid */
+        .stats-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+        .stat-card{background:var(--bg-card);padding:20px 22px;transition:background .15s}
+        .stat-card:hover{background:var(--bg-hover)}
+        .stat-label{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+        .stat-label svg{width:13px;height:13px}
+        .stat-value{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;margin-bottom:6px;letter-spacing:-.02em}
+        .stat-value.blue{color:var(--blue)}.stat-value.green{color:var(--green)}.stat-value.amber{color:var(--amber)}.stat-value.white{color:var(--text-primary)}
+        .stat-sub{font-size:11px;color:var(--text-muted)}
+
+        /* Detail row */
+        .detail-row{display:grid;grid-template-columns:300px 1fr;gap:16px}
+
+        /* Card */
+        .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+        .card-header{display:flex;align-items:center;justify-content:space-between;padding:15px 20px;border-bottom:1px solid var(--border)}
+        .card-title{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+        .card-title svg{width:14px;height:14px;color:var(--text-muted)}
+        .card-body{padding:20px}
+
+        /* Ring */
+        .ring-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:16px 0}
+        .ring-container{position:relative;width:160px;height:160px;flex-shrink:0}
+        .ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+        .ring-pct{font-size:28px;font-weight:700;color:var(--green);letter-spacing:-.02em}
+        .ring-lbl{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+        .ring-stats{width:100%;display:flex;flex-direction:column;gap:8px}
+        .ring-stat-row{display:flex;align-items:center;justify-content:space-between;font-size:12px;padding:7px 0;border-bottom:1px solid var(--border)}
+        .ring-stat-row:last-child{border-bottom:none}
+        .ring-stat-key{color:var(--text-muted)}
+        .ring-stat-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-secondary);font-weight:500}
+
+        /* Trend chart */
+        .chart-container{position:relative;height:260px}
+
+        /* Raw table */
+        .raw-table{width:100%;border-collapse:collapse;font-size:12px}
+        .raw-table th{padding:8px 16px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);background:var(--bg-surface);border-bottom:1px solid var(--border)}
+        .raw-table td{padding:10px 16px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:11px}
+        .raw-table tr:last-child td{border-bottom:none}
+        .raw-table tr:hover td{background:var(--bg-hover)}
+        .raw-key{color:var(--text-secondary);font-weight:500}
+        .raw-val{color:var(--text-primary)}
+
+        /* Loading */
+        .loading-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px}
+        .spinner{width:28px;height:28px;border:2px solid var(--border-light);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .loading-text{font-size:13px;color:var(--text-muted)}
+
+        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:99px}
+
+        @media(max-width:1100px){.stats-grid{grid-template-columns:repeat(3,1fr)}.detail-row{grid-template-columns:1fr}}
+        @media(max-width:768px){.sidebar{display:none}.main{margin-left:0}.stats-grid{grid-template-columns:repeat(2,1fr)}}
+    </style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+    <div class="sidebar-brand">
+        <div class="brand-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <div class="brand-text">
+            <span class="brand-name">RateLimiter</span>
+            <span class="brand-sub">v1.0 · Token Bucket</span>
+        </div>
+    </div>
+    <div class="nav-label">Pages</div>
+    <a class="nav-item" href="/">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        API Tester
+    </a>
+    <a class="nav-item" href="/monitoring.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Monitoring
+    </a>
+    <div class="nav-divider"></div>
+    <div class="nav-label">Live Data</div>
+    <a class="nav-item active" href="/stats.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+        Stats
+    </a>
+    <a class="nav-item" href="/health.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Health
+    </a>
+    <a class="nav-item" href="/metrics.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Metrics
+    </a>
+    <a class="nav-item" href="/users.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Users
+    </a>
+    <div class="sidebar-footer">
+        <div class="live-badge"><div class="live-dot"></div><span>Live — 5s refresh</span></div>
+        <a href="https://github.com/Meghan31" target="_blank" rel="noopener" class="gh-link">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            Meghan31
+        </a>
+    </div>
+</nav>
+
+<div class="main">
+    <header class="topbar">
+        <div class="topbar-left">
+            <span class="topbar-title">Stats</span>
+            <span class="topbar-sep">/</span>
+            <span class="topbar-sub">Live Overview</span>
+        </div>
+        <div class="topbar-right">
+            <span class="badge badge-blue" id="lastUpdated">Fetching...</span>
+            <button class="topbar-btn" onclick="fetchData()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <div class="content">
+        <div class="loading-screen" id="loadingScreen">
+            <div class="spinner"></div>
+            <p class="loading-text">Loading stats...</p>
+        </div>
+
+        <div id="dashboard" style="display:none;display:none;flex-direction:column;gap:20px;">
+
+            <!-- 6 stat cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>Total</div>
+                    <div class="stat-value white" id="s-total">—</div>
+                    <div class="stat-sub">all time</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Successful</div>
+                    <div class="stat-value green" id="s-success">—</div>
+                    <div class="stat-sub">HTTP 200</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Rate Limited</div>
+                    <div class="stat-value amber" id="s-limited">—</div>
+                    <div class="stat-sub">HTTP 429</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Active Users</div>
+                    <div class="stat-value blue" id="s-users">—</div>
+                    <div class="stat-sub">connected</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Throughput</div>
+                    <div class="stat-value blue" id="s-rps">—</div>
+                    <div class="stat-sub">req / second</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Uptime</div>
+                    <div class="stat-value white" id="s-uptime">—</div>
+                    <div class="stat-sub">running</div>
+                </div>
+            </div>
+
+            <!-- Detail row: ring + trend -->
+            <div class="detail-row">
+                <!-- Success rate ring -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+                            Success Rate
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="ring-wrap">
+                            <div class="ring-container">
+                                <svg viewBox="0 0 120 120" width="160" height="160">
+                                    <circle cx="60" cy="60" r="48" fill="none" stroke="#27272d" stroke-width="8"/>
+                                    <circle cx="60" cy="60" r="48" fill="none" stroke="#22c55e" stroke-width="8"
+                                            stroke-dasharray="301.6" stroke-dashoffset="301.6"
+                                            stroke-linecap="round" transform="rotate(-90 60 60)" id="ring-circle"/>
+                                </svg>
+                                <div class="ring-center">
+                                    <span class="ring-pct" id="ring-pct">0%</span>
+                                    <span class="ring-lbl">success</span>
+                                </div>
+                            </div>
+                            <div class="ring-stats">
+                                <div class="ring-stat-row">
+                                    <span class="ring-stat-key">Success rate</span>
+                                    <span class="ring-stat-val" id="r-successRate">—</span>
+                                </div>
+                                <div class="ring-stat-row">
+                                    <span class="ring-stat-key">Avg tokens remaining</span>
+                                    <span class="ring-stat-val" id="r-avgTokens">—</span>
+                                </div>
+                                <div class="ring-stat-row">
+                                    <span class="ring-stat-key">Req / second</span>
+                                    <span class="ring-stat-val" id="r-rps">—</span>
+                                </div>
+                                <div class="ring-stat-row">
+                                    <span class="ring-stat-key">Last updated</span>
+                                    <span class="ring-stat-val" id="r-ts">—</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trend chart -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                            Request Trend
+                        </div>
+                        <span class="badge badge-blue">Live</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container"><canvas id="trendChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Raw data table -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        Raw Fields
+                    </div>
+                </div>
+                <table class="raw-table" id="rawTable"></table>
+            </div>
+
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+    const CIRC = 301.6;
+    const history = { labels: [], successful: [], rateLimited: [] };
+    const MAX = 20;
+    let chart;
+
+    function initChart() {
+        chart = new Chart(document.getElementById('trendChart').getContext('2d'), {
+            type: 'line',
+            data: { labels: history.labels, datasets: [
+                { label: 'Successful', data: history.successful, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,.06)', borderWidth: 1.5, tension: 0.4, fill: true, pointRadius: 0, pointHoverRadius: 4 },
+                { label: 'Rate Limited', data: history.rateLimited, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.06)', borderWidth: 1.5, tension: 0.4, fill: true, pointRadius: 0, pointHoverRadius: 4 }
+            ]},
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+                plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false, backgroundColor: '#18181c', borderColor: '#27272d', borderWidth: 1, titleColor: '#f4f4f5', bodyColor: '#a1a1aa', padding: 10 } },
+                scales: {
+                    x: { grid: { color: '#1f1f25', drawBorder: false }, ticks: { color: '#52525b', font: { size: 10 }, maxTicksLimit: 8 } },
+                    y: { beginAtZero: true, grid: { color: '#1f1f25', drawBorder: false }, ticks: { color: '#52525b', font: { size: 10 } } }
+                }
+            }
+        });
+    }
+
+    function setRing(pct) {
+        const offset = CIRC * (1 - Math.min(pct, 100) / 100);
+        const circle = document.getElementById('ring-circle');
+        circle.style.strokeDashoffset = offset;
+        circle.style.stroke = pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#ef4444';
+        document.getElementById('ring-pct').textContent = pct.toFixed(1) + '%';
+        document.getElementById('ring-pct').style.color = pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#ef4444';
+    }
+
+    async function fetchData() {
+        try {
+            const d = await fetch('/api/monitoring/stats').then(r => r.json());
+
+            document.getElementById('loadingScreen').style.display = 'none';
+            const dash = document.getElementById('dashboard');
+            dash.style.display = 'flex';
+
+            // Stats
+            document.getElementById('s-total').textContent   = Number(d.totalRequests).toLocaleString();
+            document.getElementById('s-success').textContent = Number(d.successfulRequests).toLocaleString();
+            document.getElementById('s-limited').textContent = Number(d.rateLimitedRequests).toLocaleString();
+            document.getElementById('s-users').textContent   = d.activeUsers;
+            document.getElementById('s-rps').textContent     = d.requestsPerSecond;
+            document.getElementById('s-uptime').textContent  = d.uptime;
+
+            // Ring
+            const pct = parseFloat(d.successRate) || 0;
+            setRing(pct);
+            document.getElementById('r-successRate').textContent = d.successRate;
+            document.getElementById('r-avgTokens').textContent   = d.averageTokensRemaining;
+            document.getElementById('r-rps').textContent         = d.requestsPerSecond + ' req/s';
+            document.getElementById('r-ts').textContent = new Date(d.timestamp).toLocaleTimeString();
+
+            // Trend
+            const now = new Date().toLocaleTimeString([], { hour12: false });
+            history.labels.push(now);
+            history.successful.push(d.successfulRequests);
+            history.rateLimited.push(d.rateLimitedRequests);
+            if (history.labels.length > MAX) { history.labels.shift(); history.successful.shift(); history.rateLimited.shift(); }
+            chart.update('none');
+
+            // Raw table
+            const rows = Object.entries(d).map(([k, v]) =>
+                `<tr><td class="raw-key">${k}</td><td class="raw-val">${v}</td></tr>`
+            ).join('');
+            document.getElementById('rawTable').innerHTML =
+                `<thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>${rows}</tbody>`;
+
+            // Last updated
+            document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    window.addEventListener('load', () => {
+        initChart();
+        fetchData();
+        setInterval(fetchData, 5000);
+    });
+</script>
+</body>
+</html>

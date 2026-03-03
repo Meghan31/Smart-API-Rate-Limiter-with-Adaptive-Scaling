@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rate Limiter — Metrics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-base:#0c0c0e; --bg-surface:#111114; --bg-card:#18181c; --bg-hover:#1f1f25;
+            --border:#27272d; --border-light:#32323a;
+            --text-primary:#f4f4f5; --text-secondary:#a1a1aa; --text-muted:#52525b;
+            --blue:#3b82f6; --blue-bg:rgba(59,130,246,.08);
+            --green:#22c55e; --green-bg:rgba(34,197,94,.08);
+            --amber:#f59e0b; --amber-bg:rgba(245,158,11,.08);
+            --red:#ef4444; --red-bg:rgba(239,68,68,.08);
+            --purple:#a855f7; --purple-bg:rgba(168,85,247,.08);
+            --radius-sm:6px; --radius-md:10px; --radius-lg:14px;
+        }
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',sans-serif;background:var(--bg-base);color:var(--text-primary);min-height:100vh;font-size:14px;-webkit-font-smoothing:antialiased}
+        .layout{display:flex;min-height:100vh}
+
+        /* Sidebar */
+        .sidebar{width:220px;flex-shrink:0;background:var(--bg-surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 0;position:fixed;top:0;left:0;bottom:0;z-index:100}
+        .sidebar-brand{display:flex;align-items:center;gap:10px;padding:0 18px 20px;border-bottom:1px solid var(--border);margin-bottom:16px}
+        .brand-icon{width:30px;height:30px;background:var(--blue);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+        .brand-icon svg{width:16px;height:16px;color:#fff}
+        .brand-text{display:flex;flex-direction:column}
+        .brand-name{font-weight:600;font-size:13px;color:var(--text-primary);line-height:1.2}
+        .brand-sub{font-size:11px;color:var(--text-muted)}
+        .nav-label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:0 18px;margin-bottom:6px}
+        .nav-item{display:flex;align-items:center;gap:10px;padding:8px 18px;color:var(--text-secondary);transition:color .15s,background .15s;font-size:13px;font-weight:450;text-decoration:none}
+        .nav-item svg{width:15px;height:15px;flex-shrink:0}
+        .nav-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+        .nav-item.active{background:var(--blue-bg);color:var(--blue);border-right:2px solid var(--blue)}
+        .nav-divider{height:1px;background:var(--border);margin:8px 0}
+        .sidebar-footer{margin-top:auto;padding:16px 18px 0;border-top:1px solid var(--border)}
+        .live-badge{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary)}
+        .live-dot{width:7px;height:7px;background:var(--green);border-radius:50%;animation:livepulse 2s ease-in-out infinite;flex-shrink:0}
+        @keyframes livepulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{opacity:.7;box-shadow:0 0 0 4px rgba(34,197,94,0)}}
+        .gh-link{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);text-decoration:none;transition:color .15s;margin-top:10px}
+        .gh-link:hover{color:var(--text-secondary)}
+
+        /* Main */
+        .main{margin-left:220px;flex:1;display:flex;flex-direction:column}
+        .topbar{height:56px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:var(--bg-surface);position:sticky;top:0;z-index:50}
+        .topbar-left{display:flex;align-items:center;gap:8px}
+        .topbar-right{display:flex;align-items:center;gap:10px}
+        .topbar-title{font-weight:600;font-size:14px}
+        .topbar-sep{color:var(--border-light);margin:0 2px}
+        .topbar-sub{font-size:13px;color:var(--text-secondary)}
+        .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500}
+        .badge-green{background:var(--green-bg);color:var(--green)}
+        .badge-blue{background:var(--blue-bg);color:var(--blue)}
+        .badge-amber{background:var(--amber-bg);color:var(--amber)}
+        .topbar-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-secondary);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;font-family:inherit}
+        .topbar-btn:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--border-light)}
+        .topbar-btn svg{width:13px;height:13px}
+
+        .content{padding:28px;flex:1;display:flex;flex-direction:column;gap:20px}
+
+        /* Section */
+        .section-label{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+        .section-title{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted)}
+        .section-line{flex:1;height:1px;background:var(--border)}
+
+        /* Metric grid */
+        .metric-grid{display:grid;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+        .metric-grid-5{grid-template-columns:repeat(5,1fr)}
+        .metric-grid-3{grid-template-columns:repeat(3,1fr)}
+        .metric-grid-2{grid-template-columns:repeat(2,1fr)}
+
+        .metric-card{background:var(--bg-card);padding:20px 22px;transition:background .15s;position:relative}
+        .metric-card:hover{background:var(--bg-hover)}
+
+        .mc-accent{position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px 2px 0 0}
+        .mc-accent.green{background:var(--green)}
+        .mc-accent.amber{background:var(--amber)}
+        .mc-accent.red{background:var(--red)}
+        .mc-accent.blue{background:var(--blue)}
+        .mc-accent.purple{background:var(--purple)}
+
+        .mc-label{font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+        .mc-label svg{width:12px;height:12px}
+        .mc-value{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:-.02em;margin-bottom:6px}
+        .mc-value.white{color:var(--text-primary)}
+        .mc-value.green{color:var(--green)}
+        .mc-value.amber{color:var(--amber)}
+        .mc-value.red{color:var(--red)}
+        .mc-value.blue{color:var(--blue)}
+        .mc-value.purple{color:var(--purple)}
+        .mc-sub{font-size:11px;color:var(--text-muted)}
+
+        /* Breakdown bar */
+        .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+        .card-header{display:flex;align-items:center;justify-content:space-between;padding:15px 20px;border-bottom:1px solid var(--border)}
+        .card-title{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+        .card-title svg{width:14px;height:14px;color:var(--text-muted)}
+        .card-body{padding:20px}
+
+        .stacked-bar{height:12px;border-radius:99px;overflow:hidden;display:flex;margin:16px 0}
+        .stacked-seg{height:100%;transition:width .4s ease}
+        .stacked-seg.green{background:var(--green)}
+        .stacked-seg.amber{background:var(--amber)}
+        .stacked-seg.red{background:var(--red)}
+        .stacked-seg.muted{background:var(--border-light)}
+
+        .breakdown-legend{display:flex;gap:20px;flex-wrap:wrap}
+        .bl-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-secondary)}
+        .bl-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+        .chart-container{position:relative;height:200px;margin-top:16px}
+
+        /* Loading */
+        .loading-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px}
+        .spinner{width:28px;height:28px;border:2px solid var(--border-light);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .loading-text{font-size:13px;color:var(--text-muted)}
+
+        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:99px}
+        @media(max-width:1100px){.metric-grid-5{grid-template-columns:repeat(3,1fr)}.metric-grid-3{grid-template-columns:repeat(2,1fr)}}
+        @media(max-width:768px){.sidebar{display:none}.main{margin-left:0}.metric-grid-5,.metric-grid-3,.metric-grid-2{grid-template-columns:repeat(2,1fr)}}
+    </style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+    <div class="sidebar-brand">
+        <div class="brand-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <div class="brand-text">
+            <span class="brand-name">RateLimiter</span>
+            <span class="brand-sub">v1.0 · Token Bucket</span>
+        </div>
+    </div>
+    <div class="nav-label">Pages</div>
+    <a class="nav-item" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>API Tester</a>
+    <a class="nav-item" href="/monitoring.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Monitoring</a>
+    <div class="nav-divider"></div>
+    <div class="nav-label">Live Data</div>
+    <a class="nav-item" href="/stats.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>Stats</a>
+    <a class="nav-item" href="/health.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Health</a>
+    <a class="nav-item active" href="/metrics.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Metrics</a>
+    <a class="nav-item" href="/users.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Users</a>
+    <div class="sidebar-footer">
+        <div class="live-badge"><div class="live-dot"></div><span>Live — 5s refresh</span></div>
+        <a href="https://github.com/Meghan31" target="_blank" rel="noopener" class="gh-link">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            Meghan31
+        </a>
+    </div>
+</nav>
+
+<div class="main">
+    <header class="topbar">
+        <div class="topbar-left">
+            <span class="topbar-title">Metrics</span>
+            <span class="topbar-sep">/</span>
+            <span class="topbar-sub">Detailed Breakdown</span>
+        </div>
+        <div class="topbar-right">
+            <span class="badge badge-blue" id="lastUpdated">Fetching...</span>
+            <button class="topbar-btn" onclick="fetchData()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <div class="content">
+        <div class="loading-screen" id="loadingScreen">
+            <div class="spinner"></div>
+            <p class="loading-text">Loading metrics...</p>
+        </div>
+
+        <div id="dashboard" style="display:none;flex-direction:column;gap:24px;">
+
+            <!-- Requests section -->
+            <div>
+                <div class="section-label">
+                    <span class="section-title">Requests</span>
+                    <div class="section-line"></div>
+                </div>
+                <div class="metric-grid metric-grid-5">
+                    <div class="metric-card">
+                        <div class="mc-accent white" style="background:var(--text-muted)"></div>
+                        <div class="mc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>Total</div>
+                        <div class="mc-value white" id="m-total">—</div>
+                        <div class="mc-sub">all requests</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="mc-accent green"></div>
+                        <div class="mc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Successful</div>
+                        <div class="mc-value green" id="m-successful">—</div>
+                        <div class="mc-sub">HTTP 200</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="mc-accent amber"></div>
+                        <div class="mc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Rate Limited</div>
+                        <div class="mc-value amber" id="m-rateLimited">—</div>
+                        <div class="mc-sub">HTTP 429</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="mc-accent red"></div>
+                        <div class="mc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Failed</div>
+                        <div class="mc-value red" id="m-failed">—</div>
+                        <div class="mc-sub">other errors</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="mc-accent blue"></div>
+                        <div class="mc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Throughput</div>
+                        <div class="mc-value blue" id="m-throughput">—</div>
+                        <div class="mc-sub">req / second</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rate Limiting section -->
+            <div>
+                <div class="section-label">
+                    <span class="section-title">Rate Limiting</span>
+                    <div class="section-line"></div>
+                </div>
+                <div class="metric-grid metric-grid-3">
+                    <div class="metric-card">
+                        <div class="mc-accent amber"></div>
+                        <div class="mc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Total Rate Limited</div>
+                        <div class="mc-value amber" id="m-totalRateLimited">—</div>
+                        <div class="mc-sub">blocked requests</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="mc-accent red"></div>
+                        <div class="mc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>Rate Limit Rate</div>
+                        <div class="mc-value red" id="m-rateLimitRate">—</div>
+                        <div class="mc-sub">% of all requests</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="mc-accent blue"></div>
+                        <div class="mc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Active Users</div>
+                        <div class="mc-value blue" id="m-activeUsers">—</div>
+                        <div class="mc-sub">current sessions</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance section -->
+            <div>
+                <div class="section-label">
+                    <span class="section-title">Performance</span>
+                    <div class="section-line"></div>
+                </div>
+                <div class="metric-grid metric-grid-2">
+                    <div class="metric-card">
+                        <div class="mc-accent purple"></div>
+                        <div class="mc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Uptime</div>
+                        <div class="mc-value purple" id="m-uptime">—</div>
+                        <div class="mc-sub">seconds running</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="mc-accent blue"></div>
+                        <div class="mc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Avg Req / Second</div>
+                        <div class="mc-value blue" id="m-avgRps">—</div>
+                        <div class="mc-sub">average throughput</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Breakdown bar -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                        Request Breakdown
+                    </div>
+                    <span class="badge badge-blue">Proportional</span>
+                </div>
+                <div class="card-body">
+                    <div class="breakdown-legend">
+                        <div class="bl-item"><div class="bl-dot" style="background:var(--green)"></div>Successful</div>
+                        <div class="bl-item"><div class="bl-dot" style="background:var(--amber)"></div>Rate Limited</div>
+                        <div class="bl-item"><div class="bl-dot" style="background:var(--red)"></div>Failed</div>
+                    </div>
+                    <div class="stacked-bar">
+                        <div class="stacked-seg green" id="bar-success" style="width:0%"></div>
+                        <div class="stacked-seg amber" id="bar-limited" style="width:0%"></div>
+                        <div class="stacked-seg red"   id="bar-failed"  style="width:0%"></div>
+                        <div class="stacked-seg muted" id="bar-empty"   style="width:100%"></div>
+                    </div>
+                    <div class="chart-container"><canvas id="breakdownChart"></canvas></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+    let barChart;
+
+    function initChart() {
+        barChart = new Chart(document.getElementById('breakdownChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Successful', 'Rate Limited', 'Failed'],
+                datasets: [{
+                    data: [0, 0, 0],
+                    backgroundColor: ['rgba(34,197,94,.7)', 'rgba(245,158,11,.7)', 'rgba(239,68,68,.7)'],
+                    borderColor: ['#22c55e', '#f59e0b', '#ef4444'],
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+                plugins: { legend: { display: false }, tooltip: { backgroundColor: '#18181c', borderColor: '#27272d', borderWidth: 1, titleColor: '#f4f4f5', bodyColor: '#a1a1aa', padding: 10 } },
+                scales: {
+                    x: { grid: { color: '#1f1f25', drawBorder: false }, ticks: { color: '#52525b', font: { size: 11 } } },
+                    y: { beginAtZero: true, grid: { color: '#1f1f25', drawBorder: false }, ticks: { color: '#52525b', font: { size: 11 } } }
+                }
+            }
+        });
+    }
+
+    async function fetchData() {
+        try {
+            const d = await fetch('/api/monitoring/metrics').then(r => r.json());
+            document.getElementById('loadingScreen').style.display = 'none';
+            const dash = document.getElementById('dashboard');
+            dash.style.display = 'flex';
+
+            const rq = d.requests || {};
+            const rl = d.rateLimiting || {};
+            const pf = d.performance || {};
+
+            // Requests
+            document.getElementById('m-total').textContent       = Number(rq.total || 0).toLocaleString();
+            document.getElementById('m-successful').textContent  = Number(rq.successful || 0).toLocaleString();
+            document.getElementById('m-rateLimited').textContent = Number(rq.rateLimited || 0).toLocaleString();
+            document.getElementById('m-failed').textContent      = Number(rq.failed || 0).toLocaleString();
+            document.getElementById('m-throughput').textContent  = typeof rq.throughput === 'number' ? rq.throughput.toFixed(2) : '0.00';
+
+            // Rate limiting
+            document.getElementById('m-totalRateLimited').textContent = Number(rl.totalRateLimited || 0).toLocaleString();
+            const rlRate = typeof rl.rateLimitRate === 'number' ? rl.rateLimitRate.toFixed(2) + '%' : '—';
+            document.getElementById('m-rateLimitRate').textContent = rlRate;
+            document.getElementById('m-activeUsers').textContent = rl.activeUsers ?? '—';
+
+            // Performance
+            document.getElementById('m-uptime').textContent = Number(pf.uptimeSeconds || 0).toLocaleString() + 's';
+            document.getElementById('m-avgRps').textContent = typeof pf.averageRequestsPerSecond === 'number' ? pf.averageRequestsPerSecond.toFixed(2) : '0.00';
+
+            // Stacked bar
+            const total = rq.total || 0;
+            const succPct    = total > 0 ? (rq.successful / total * 100) : 0;
+            const limitedPct = total > 0 ? (rq.rateLimited / total * 100) : 0;
+            const failedPct  = total > 0 ? (rq.failed / total * 100) : 0;
+            const emptyPct   = Math.max(0, 100 - succPct - limitedPct - failedPct);
+
+            document.getElementById('bar-success').style.width = succPct + '%';
+            document.getElementById('bar-limited').style.width = limitedPct + '%';
+            document.getElementById('bar-failed').style.width  = failedPct + '%';
+            document.getElementById('bar-empty').style.width   = emptyPct + '%';
+
+            // Bar chart
+            barChart.data.datasets[0].data = [rq.successful || 0, rq.rateLimited || 0, rq.failed || 0];
+            barChart.update('none');
+
+            document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    window.addEventListener('load', () => {
+        initChart();
+        fetchData();
+        setInterval(fetchData, 5000);
+    });
+</script>
+</body>
+</html>

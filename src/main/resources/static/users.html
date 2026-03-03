@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rate Limiter — Users</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base:#0c0c0e; --bg-surface:#111114; --bg-card:#18181c; --bg-hover:#1f1f25;
+            --border:#27272d; --border-light:#32323a;
+            --text-primary:#f4f4f5; --text-secondary:#a1a1aa; --text-muted:#52525b;
+            --blue:#3b82f6; --blue-bg:rgba(59,130,246,.08);
+            --green:#22c55e; --green-bg:rgba(34,197,94,.08);
+            --amber:#f59e0b; --amber-bg:rgba(245,158,11,.08);
+            --red:#ef4444; --red-bg:rgba(239,68,68,.08);
+            --radius-sm:6px; --radius-md:10px; --radius-lg:14px;
+        }
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',sans-serif;background:var(--bg-base);color:var(--text-primary);min-height:100vh;font-size:14px;-webkit-font-smoothing:antialiased}
+        .layout{display:flex;min-height:100vh}
+
+        /* Sidebar */
+        .sidebar{width:220px;flex-shrink:0;background:var(--bg-surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 0;position:fixed;top:0;left:0;bottom:0;z-index:100}
+        .sidebar-brand{display:flex;align-items:center;gap:10px;padding:0 18px 20px;border-bottom:1px solid var(--border);margin-bottom:16px}
+        .brand-icon{width:30px;height:30px;background:var(--blue);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+        .brand-icon svg{width:16px;height:16px;color:#fff}
+        .brand-text{display:flex;flex-direction:column}
+        .brand-name{font-weight:600;font-size:13px;color:var(--text-primary);line-height:1.2}
+        .brand-sub{font-size:11px;color:var(--text-muted)}
+        .nav-label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:0 18px;margin-bottom:6px}
+        .nav-item{display:flex;align-items:center;gap:10px;padding:8px 18px;color:var(--text-secondary);transition:color .15s,background .15s;font-size:13px;font-weight:450;text-decoration:none}
+        .nav-item svg{width:15px;height:15px;flex-shrink:0}
+        .nav-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+        .nav-item.active{background:var(--blue-bg);color:var(--blue);border-right:2px solid var(--blue)}
+        .nav-divider{height:1px;background:var(--border);margin:8px 0}
+        .sidebar-footer{margin-top:auto;padding:16px 18px 0;border-top:1px solid var(--border)}
+        .live-badge{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary)}
+        .live-dot{width:7px;height:7px;background:var(--green);border-radius:50%;animation:livepulse 2s ease-in-out infinite;flex-shrink:0}
+        @keyframes livepulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{opacity:.7;box-shadow:0 0 0 4px rgba(34,197,94,0)}}
+        .gh-link{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);text-decoration:none;transition:color .15s;margin-top:10px}
+        .gh-link:hover{color:var(--text-secondary)}
+
+        /* Main */
+        .main{margin-left:220px;flex:1;display:flex;flex-direction:column}
+        .topbar{height:56px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:var(--bg-surface);position:sticky;top:0;z-index:50}
+        .topbar-left{display:flex;align-items:center;gap:8px}
+        .topbar-right{display:flex;align-items:center;gap:10px}
+        .topbar-title{font-weight:600;font-size:14px}
+        .topbar-sep{color:var(--border-light);margin:0 2px}
+        .topbar-sub{font-size:13px;color:var(--text-secondary)}
+        .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500}
+        .badge-green{background:var(--green-bg);color:var(--green)}
+        .badge-blue{background:var(--blue-bg);color:var(--blue)}
+        .badge-amber{background:var(--amber-bg);color:var(--amber)}
+        .badge-red{background:var(--red-bg);color:var(--red)}
+        .topbar-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-secondary);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;font-family:inherit}
+        .topbar-btn:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--border-light)}
+        .topbar-btn svg{width:13px;height:13px}
+
+        .content{padding:28px;flex:1;display:flex;flex-direction:column;gap:20px}
+
+        /* Distribution cards */
+        .dist-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+        .dist-card{background:var(--bg-card);padding:18px 22px;transition:background .15s}
+        .dist-card:hover{background:var(--bg-hover)}
+        .dist-label{font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+        .dist-label .sdot{width:7px;height:7px;border-radius:50%}
+        .sdot.green{background:var(--green);box-shadow:0 0 6px rgba(34,197,94,.5)}
+        .sdot.amber{background:var(--amber);box-shadow:0 0 6px rgba(245,158,11,.5)}
+        .sdot.red{background:var(--red);box-shadow:0 0 6px rgba(239,68,68,.5)}
+        .sdot.muted{background:var(--border-light)}
+        .dist-val{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:-.02em}
+        .dist-val.green{color:var(--green)}.dist-val.amber{color:var(--amber)}.dist-val.red{color:var(--red)}.dist-val.white{color:var(--text-primary)}
+        .dist-sub{font-size:11px;color:var(--text-muted);margin-top:4px}
+
+        /* Filter bar */
+        .filter-bar{display:flex;align-items:center;gap:12px}
+        .search-wrap{position:relative;flex:1;max-width:340px}
+        .search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--text-muted);pointer-events:none}
+        .search-input{width:100%;padding:8px 12px 8px 34px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:13px;font-family:inherit;outline:none;transition:border-color .15s}
+        .search-input:focus{border-color:var(--blue)}
+        .search-input::placeholder{color:var(--text-muted)}
+
+        /* Table card */
+        .table-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+        .table-header{display:flex;align-items:center;justify-content:space-between;padding:15px 20px;border-bottom:1px solid var(--border)}
+        .table-title{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+        .table-title svg{width:14px;height:14px;color:var(--text-muted)}
+
+        .users-table{width:100%;border-collapse:collapse}
+        .users-table th{padding:10px 20px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);background:var(--bg-surface);border-bottom:1px solid var(--border)}
+        .users-table td{padding:13px 20px;border-bottom:1px solid var(--border);vertical-align:middle}
+        .users-table tr:last-child td{border-bottom:none}
+        .users-table tr:hover td{background:var(--bg-hover)}
+
+        .key-cell{display:flex;align-items:center;gap:10px}
+        .key-avatar{width:28px;height:28px;border-radius:var(--radius-sm);background:var(--bg-hover);border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+        .key-avatar svg{width:13px;height:13px;color:var(--text-muted)}
+        .key-text{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:var(--text-primary)}
+
+        .token-bar-wrap{display:flex;align-items:center;gap:10px}
+        .token-bar{flex:1;height:5px;background:var(--bg-hover);border-radius:99px;overflow:hidden;min-width:80px}
+        .token-fill{height:100%;border-radius:99px;transition:width .4s ease}
+        .token-fill.green{background:var(--green)}
+        .token-fill.amber{background:var(--amber)}
+        .token-fill.red{background:var(--red)}
+        .token-pct{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text-secondary);min-width:36px;text-align:right;font-family:'JetBrains Mono',monospace}
+
+        .ttl-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-muted);background:var(--bg-hover);padding:3px 8px;border-radius:var(--radius-sm);border:1px solid var(--border)}
+        .ttl-chip svg{width:10px;height:10px}
+
+        .tok-count{font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+
+        .empty-state{padding:60px 20px;text-align:center;color:var(--text-muted)}
+        .empty-state svg{width:36px;height:36px;margin:0 auto 14px;display:block;opacity:.35}
+        .empty-state p{font-size:13px}
+
+        /* Loading */
+        .loading-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px}
+        .spinner{width:28px;height:28px;border:2px solid var(--border-light);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .loading-text{font-size:13px;color:var(--text-muted)}
+
+        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:99px}
+        @media(max-width:900px){.dist-grid{grid-template-columns:repeat(2,1fr)}}
+        @media(max-width:768px){.sidebar{display:none}.main{margin-left:0}.dist-grid{grid-template-columns:repeat(2,1fr)}}
+    </style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+    <div class="sidebar-brand">
+        <div class="brand-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <div class="brand-text">
+            <span class="brand-name">RateLimiter</span>
+            <span class="brand-sub">v1.0 · Token Bucket</span>
+        </div>
+    </div>
+    <div class="nav-label">Pages</div>
+    <a class="nav-item" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>API Tester</a>
+    <a class="nav-item" href="/monitoring.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Monitoring</a>
+    <div class="nav-divider"></div>
+    <div class="nav-label">Live Data</div>
+    <a class="nav-item" href="/stats.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>Stats</a>
+    <a class="nav-item" href="/health.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Health</a>
+    <a class="nav-item" href="/metrics.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Metrics</a>
+    <a class="nav-item active" href="/users.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Users</a>
+    <div class="sidebar-footer">
+        <div class="live-badge"><div class="live-dot"></div><span>Live — 5s refresh</span></div>
+        <a href="https://github.com/Meghan31" target="_blank" rel="noopener" class="gh-link">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            Meghan31
+        </a>
+    </div>
+</nav>
+
+<div class="main">
+    <header class="topbar">
+        <div class="topbar-left">
+            <span class="topbar-title">Users</span>
+            <span class="topbar-sep">/</span>
+            <span class="topbar-sub">Active Sessions</span>
+        </div>
+        <div class="topbar-right">
+            <span class="badge badge-blue" id="totalBadge">0 users</span>
+            <button class="topbar-btn" onclick="fetchData()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <div class="content">
+        <div class="loading-screen" id="loadingScreen">
+            <div class="spinner"></div>
+            <p class="loading-text">Loading users...</p>
+        </div>
+
+        <div id="dashboard" style="display:none;flex-direction:column;gap:20px;">
+
+            <!-- Distribution -->
+            <div class="dist-grid">
+                <div class="dist-card">
+                    <div class="dist-label"><div class="sdot white" style="background:var(--text-secondary)"></div>Total</div>
+                    <div class="dist-val white" id="d-total">0</div>
+                    <div class="dist-sub">active sessions</div>
+                </div>
+                <div class="dist-card">
+                    <div class="dist-label"><div class="sdot green"></div>Healthy</div>
+                    <div class="dist-val green" id="d-healthy">0</div>
+                    <div class="dist-sub">&gt; 50 tokens left</div>
+                </div>
+                <div class="dist-card">
+                    <div class="dist-label"><div class="sdot amber"></div>Warning</div>
+                    <div class="dist-val amber" id="d-warning">0</div>
+                    <div class="dist-sub">10 – 50 tokens left</div>
+                </div>
+                <div class="dist-card">
+                    <div class="dist-label"><div class="sdot red"></div>Critical</div>
+                    <div class="dist-val red" id="d-critical">0</div>
+                    <div class="dist-sub">&lt; 10 tokens left</div>
+                </div>
+            </div>
+
+            <!-- Filter + Table -->
+            <div class="table-card">
+                <div class="table-header">
+                    <div class="table-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        Active Users
+                    </div>
+                    <div class="filter-bar">
+                        <div class="search-wrap">
+                            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input class="search-input" type="text" id="searchInput" placeholder="Filter by API key..." oninput="filterTable()">
+                        </div>
+                    </div>
+                </div>
+                <div id="tableBody"></div>
+            </div>
+
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+    let allUsers = [];
+
+    function statusColor(s) {
+        const l = (s || '').toLowerCase();
+        if (l === 'healthy') return 'green';
+        if (l === 'warning') return 'amber';
+        if (l === 'critical') return 'red';
+        return 'blue';
+    }
+
+    function badgeClass(s) {
+        const l = (s || '').toLowerCase();
+        if (l === 'healthy') return 'badge-green';
+        if (l === 'warning') return 'badge-amber';
+        if (l === 'critical') return 'badge-red';
+        return 'badge-blue';
+    }
+
+    function renderTable(users) {
+        const body = document.getElementById('tableBody');
+        if (!users.length) {
+            body.innerHTML = `
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                    </svg>
+                    <p>No users match your filter</p>
+                </div>`;
+            return;
+        }
+
+        const rows = users.map(u => {
+            const pct = parseFloat(u.capacityPercentage) || 0;
+            const sc  = statusColor(u.status);
+            const bc  = badgeClass(u.status);
+            return `
+            <tr>
+                <td>
+                    <div class="key-cell">
+                        <div class="key-avatar">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                        </div>
+                        <span class="key-text">${u.apiKey}</span>
+                    </div>
+                </td>
+                <td><span class="badge ${bc}">${u.status}</span></td>
+                <td style="min-width:200px;">
+                    <div class="token-bar-wrap">
+                        <div class="token-bar">
+                            <div class="token-fill ${sc}" style="width:${Math.min(pct,100)}%"></div>
+                        </div>
+                        <span class="token-pct">${pct.toFixed(0)}%</span>
+                    </div>
+                </td>
+                <td><span class="tok-count">${Number(u.remainingTokens).toLocaleString()} tokens</span></td>
+                <td>
+                    <span class="ttl-chip">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        ${u.ttlSeconds}s
+                    </span>
+                </td>
+            </tr>`;
+        }).join('');
+
+        body.innerHTML = `
+            <table class="users-table">
+                <thead>
+                    <tr>
+                        <th>API Key</th>
+                        <th>Status</th>
+                        <th>Token Capacity</th>
+                        <th>Remaining</th>
+                        <th>TTL</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    }
+
+    function filterTable() {
+        const q = document.getElementById('searchInput').value.toLowerCase();
+        const filtered = q ? allUsers.filter(u => u.apiKey.toLowerCase().includes(q)) : allUsers;
+        renderTable(filtered);
+    }
+
+    async function fetchData() {
+        try {
+            const d = await fetch('/api/monitoring/users').then(r => r.json());
+            document.getElementById('loadingScreen').style.display = 'none';
+            const dash = document.getElementById('dashboard');
+            dash.style.display = 'flex';
+
+            allUsers = d.users || [];
+            const total    = allUsers.length;
+            const healthy  = allUsers.filter(u => u.status === 'HEALTHY').length;
+            const warning  = allUsers.filter(u => u.status === 'WARNING').length;
+            const critical = allUsers.filter(u => u.status === 'CRITICAL').length;
+
+            document.getElementById('d-total').textContent    = total;
+            document.getElementById('d-healthy').textContent  = healthy;
+            document.getElementById('d-warning').textContent  = warning;
+            document.getElementById('d-critical').textContent = critical;
+            document.getElementById('totalBadge').textContent = total + ' user' + (total !== 1 ? 's' : '');
+
+            filterTable();
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    window.addEventListener('load', () => {
+        fetchData();
+        setInterval(fetchData, 5000);
+    });
+</script>
+</body>
+</html>

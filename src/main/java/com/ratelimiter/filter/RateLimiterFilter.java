@@ -1,6 +1,7 @@
 package com.ratelimiter.filter;
 
 import com.ratelimiter.config.RateLimiterConfig;
+import com.ratelimiter.controller.MonitoringController;
 import com.ratelimiter.service.RedisRateLimiterService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -53,12 +54,15 @@ public class RateLimiterFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        // Only apply rate limiting to /api/* endpoints
+        // Only apply rate limiting to /api/* endpoints (excluding monitoring endpoints)
         String requestPath = request.getRequestURI();
-        if (!requestPath.startsWith("/api/")) {
+        if (!requestPath.startsWith("/api/") || requestPath.startsWith("/api/monitoring/")) {
             filterChain.doFilter(request, response);
             return;
         }
+
+        // Track total requests
+        MonitoringController.incrementTotalRequests();
 
         // Skip rate limiting if disabled
         if (!config.getTokenBucket().isEnabled()) {
@@ -84,10 +88,12 @@ public class RateLimiterFilter extends OncePerRequestFilter {
         if (allowed) {
             // Allow the request to proceed
             logger.debug("Request allowed for user: {} on path: {}", userId, requestPath);
+            MonitoringController.incrementSuccessfulRequests();
             filterChain.doFilter(request, response);
         } else {
             // Rate limit exceeded - return 429 Too Many Requests
             logger.info("Rate limit exceeded for user: {} on path: {}", userId, requestPath);
+            MonitoringController.incrementRateLimitedRequests();
             response.setStatus(429);
             response.setContentType("application/json");
             response.getWriter().write(String.format(

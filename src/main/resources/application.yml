@@ -3,6 +3,23 @@ spring:
   application:
     name: smart-rate-limiter
 
+  # Application Information (visible via /actuator/info)
+  info:
+    app:
+      name: Smart API Rate Limiter
+      description: Production-ready distributed rate limiter with adaptive scaling
+      version: 1.0.0
+      build-time: 2026-01-14
+    features:
+      - Distributed rate limiting with Redis
+      - Token Bucket algorithm
+      - Real-time monitoring dashboard
+      - Docker and Kubernetes support
+      - Horizontal scaling capability
+    contact:
+      email: meghan31.me
+      documentation: https://github.com/Meghan31/Smart-API-Rate-Limiter-with-Adaptive-Scaling
+
   # Redis Configuration for Distributed Rate Limiting
   data:
     redis:
@@ -35,21 +52,47 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,metrics,info,prometheus
+        include: health,metrics,info,prometheus,env,loggers,threaddump,heapdump
+      base-path: /actuator
+      cors:
+        allowed-origins: "*"  # For development; restrict in production
+        allowed-methods: GET,POST
   endpoint:
     health:
       show-details: always
+      show-components: always
       probes:
         enabled: true  # Enable Kubernetes probes
+    metrics:
+      enabled: true
+    info:
+      enabled: true
+    prometheus:
+      enabled: true
+    env:
+      enabled: true
+      show-values: when-authorized  # Protect sensitive values
+    loggers:
+      enabled: true
   health:
     livenessState:
       enabled: true  # Enable liveness state
     readinessState:
       enabled: true  # Enable readiness state
+    redis:
+      enabled: true  # Enable Redis health check
   metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: development
     export:
       prometheus:
         enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 10ms,50ms,100ms,200ms,500ms
 
 # Logging Configuration
 logging:
