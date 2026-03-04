@@ -1,0 +1,40 @@
+# Render.com deployment configuration
+services:
+  # Main application
+  - type: web
+    name: smart-rate-limiter
+    env: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: cloud
+      - key: SPRING_DATA_REDIS_HOST
+        fromService:
+          type: redis
+          name: rate-limiter-redis
+          property: host
+      - key: SPRING_DATA_REDIS_PORT
+        fromService:
+          type: redis
+          name: rate-limiter-redis
+          property: port
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: rate-limiter-redis
+          property: connectionString
+      - key: RATE_LIMITER_CAPACITY
+        value: 100
+      - key: RATE_LIMITER_REFILL_RATE
+        value: 10.0
+
+  # Redis database
+  - type: redis
+    name: rate-limiter-redis
+    region: oregon
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
