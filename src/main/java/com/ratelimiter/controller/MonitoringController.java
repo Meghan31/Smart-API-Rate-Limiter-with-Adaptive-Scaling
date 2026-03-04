@@ -33,7 +33,7 @@ public class MonitoringController {
     @Autowired
     private RedisRateLimiterService rateLimiterService;
 
-    @Autowired
+    @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
 
     // In-memory statistics tracking
@@ -331,6 +331,14 @@ public class MonitoringController {
      */
     private Map<String, Object> checkRedisHealth() {
         Map<String, Object> redisHealth = new HashMap<>();
+
+        if (redisTemplate == null) {
+            redisHealth.put("status", "DISABLED");
+            redisHealth.put("mode", "in-memory-fallback");
+            redisHealth.put("message", "RedisTemplate is not available");
+            return redisHealth;
+        }
+
         try {
             long startTime = System.nanoTime();
             redisTemplate.execute((RedisConnection connection) -> {

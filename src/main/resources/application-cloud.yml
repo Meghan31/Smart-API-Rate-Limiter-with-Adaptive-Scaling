@@ -37,7 +37,7 @@ management:
       show-details: always
   health:
     redis:
-      enabled: true
+      enabled: ${MANAGEMENT_HEALTH_REDIS_ENABLED:false}
 
 logging:
   level:
