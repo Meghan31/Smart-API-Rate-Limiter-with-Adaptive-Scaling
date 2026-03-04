@@ -1,0 +1,45 @@
+# Cloud deployment configuration (Railway, Render, etc.)
+spring:
+  application:
+    name: smart-rate-limiter
+
+  # Redis connection using URL (for Railway/Render)
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+      timeout: 5000ms
+      lettuce:
+        pool:
+          enabled: true
+          max-active: 10
+          max-idle: 5
+          min-idle: 2
+          max-wait: 2000ms
+
+server:
+  port: ${PORT:8080}
+
+rate-limiter:
+  token-bucket:
+    enabled: true
+    capacity: ${RATE_LIMITER_CAPACITY:100}
+    refill-rate: ${RATE_LIMITER_REFILL_RATE:10.0}
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+  health:
+    redis:
+      enabled: true
+
+logging:
+  level:
+    com.ratelimiter: INFO
+    root: INFO

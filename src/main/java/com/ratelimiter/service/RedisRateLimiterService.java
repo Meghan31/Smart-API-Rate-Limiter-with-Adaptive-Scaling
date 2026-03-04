@@ -3,8 +3,10 @@ package com.ratelimiter.service;
 import com.ratelimiter.config.RateLimiterConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
@@ -71,11 +73,18 @@ public class RedisRateLimiterService {
             return {allowed, math.floor(current_tokens)}
             """;
 
-    public RedisRateLimiterService(StringRedisTemplate redisTemplate, RateLimiterConfig config) {
+    @Autowired
+    public RedisRateLimiterService(@Nullable StringRedisTemplate redisTemplate, RateLimiterConfig config) {
         this.redisTemplate = redisTemplate;
         this.config = config;
-        logger.info("RedisRateLimiterService ready — capacity={}, refillRate={} tok/s",
-                config.getTokenBucket().getCapacity(), config.getTokenBucket().getRefillRate());
+        if (redisTemplate == null) {
+            redisFailing = true;
+            logger.info("RedisRateLimiterService started in IN-MEMORY mode (no Redis) — capacity={}, refillRate={} tok/s",
+                    config.getTokenBucket().getCapacity(), config.getTokenBucket().getRefillRate());
+        } else {
+            logger.info("RedisRateLimiterService ready — capacity={}, refillRate={} tok/s",
+                    config.getTokenBucket().getCapacity(), config.getTokenBucket().getRefillRate());
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -209,16 +218,20 @@ public class RedisRateLimiterService {
     }
 
     public void reset(String userId) {
-        try { redisTemplate.delete(KEY_PREFIX + userId); } catch (Exception ignored) {}
+        if (redisTemplate != null) {
+            try { redisTemplate.delete(KEY_PREFIX + userId); } catch (Exception ignored) {}
+        }
         fallbackBuckets.remove(userId);
         fallbackAccess.remove(userId);
     }
 
     public void resetAll() {
-        try {
-            Set<String> keys = redisTemplate.keys(KEY_PREFIX + "*");
-            if (keys != null) keys.forEach(redisTemplate::delete);
-        } catch (Exception ignored) {}
+        if (redisTemplate != null) {
+            try {
+                Set<String> keys = redisTemplate.keys(KEY_PREFIX + "*");
+                if (keys != null) keys.forEach(redisTemplate::delete);
+            } catch (Exception ignored) {}
+        }
         fallbackBuckets.clear();
         fallbackAccess.clear();
     }

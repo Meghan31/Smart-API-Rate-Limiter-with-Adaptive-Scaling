@@ -1,6 +1,7 @@
 package com.ratelimiter.config;
 
 import com.ratelimiter.service.TokenBucket;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,11 +42,13 @@ public class RateLimiterConfig {
 
     /**
      * Creates a RedisTemplate bean for Redis operations.
+     * Only created when a RedisConnectionFactory is present (i.e. Redis is available).
      *
      * @param connectionFactory the Redis connection factory
      * @return configured RedisTemplate instance
      */
     @Bean
+    @ConditionalOnBean(RedisConnectionFactory.class)
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
