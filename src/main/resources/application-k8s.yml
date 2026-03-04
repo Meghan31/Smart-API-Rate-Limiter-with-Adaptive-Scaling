@@ -45,13 +45,13 @@ rate-limiter:
   token-bucket:
     enabled: ${RATE_LIMITER_TOKEN_BUCKET_ENABLED:true}
     capacity: ${RATE_LIMITER_TOKEN_BUCKET_CAPACITY:100}
-    refill-rate: ${RATE_LIMITER_TOKEN_BUCKET_REFILL_RATE:10.0}
+    refill-rate: ${RATE_LIMITER_TOKEN_BUCKET_REFILL_RATE:5.0}
 
 # Actuator Configuration for Kubernetes
 management:
   # Server configuration for actuator
   server:
-    port: 8080  # Same port as application (common in Kubernetes)
+    port: 8080 # Same port as application (common in Kubernetes)
 
   endpoints:
     web:
@@ -108,7 +108,7 @@ logging:
 
   # JSON logging for better log aggregation in Kubernetes
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'
 
   # File logging disabled in Kubernetes (use stdout/stderr)
   file:

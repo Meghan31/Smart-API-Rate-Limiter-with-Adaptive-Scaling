@@ -23,7 +23,7 @@ rate-limiter:
   token-bucket:
     enabled: true
     capacity: ${RATE_LIMITER_CAPACITY:100}
-    refill-rate: ${RATE_LIMITER_REFILL_RATE:10.0}
+    refill-rate: ${RATE_LIMITER_REFILL_RATE:5.0}
 
 # Actuator
 management:

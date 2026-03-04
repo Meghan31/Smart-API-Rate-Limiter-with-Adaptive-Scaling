@@ -48,7 +48,7 @@ services:
 
       # Rate limiter configuration
       - RATE_LIMITER_TOKEN_BUCKET_CAPACITY=100
-      - RATE_LIMITER_TOKEN_BUCKET_REFILL_RATE=10.0
+      - RATE_LIMITER_TOKEN_BUCKET_REFILL_RATE=5.0
 
       # JVM settings for container
       - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0

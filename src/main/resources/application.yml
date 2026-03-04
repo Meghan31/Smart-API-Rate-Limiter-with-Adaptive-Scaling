@@ -38,14 +38,14 @@ spring:
 # Server Configuration
 server:
   port: 8080
-  shutdown: graceful  # Enable graceful shutdown for Kubernetes
+  shutdown: graceful # Enable graceful shutdown for Kubernetes
 
 # Rate Limiter Configuration
 rate-limiter:
   token-bucket:
     enabled: true
-    capacity: 100        # Maximum number of tokens
-    refill-rate: 10.0    # Tokens per second
+    capacity: 100 # Maximum number of tokens
+    refill-rate: 5.0 # Tokens per second
 
 # Actuator Configuration
 management:
@@ -55,14 +55,14 @@ management:
         include: health,metrics,info,prometheus,env,loggers,threaddump,heapdump
       base-path: /actuator
       cors:
-        allowed-origins: "*"  # For development; restrict in production
+        allowed-origins: '*' # For development; restrict in production
         allowed-methods: GET,POST
   endpoint:
     health:
       show-details: always
       show-components: always
       probes:
-        enabled: true  # Enable Kubernetes probes
+        enabled: true # Enable Kubernetes probes
     metrics:
       enabled: true
     info:
@@ -71,16 +71,16 @@ management:
       enabled: true
     env:
       enabled: true
-      show-values: when-authorized  # Protect sensitive values
+      show-values: when-authorized # Protect sensitive values
     loggers:
       enabled: true
   health:
     livenessState:
-      enabled: true  # Enable liveness state
+      enabled: true # Enable liveness state
     readinessState:
-      enabled: true  # Enable readiness state
+      enabled: true # Enable readiness state
     redis:
-      enabled: true  # Enable Redis health check
+      enabled: true # Enable Redis health check
   metrics:
     tags:
       application: ${spring.application.name}
@@ -99,8 +99,8 @@ logging:
   level:
     com.ratelimiter: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    console: '%d{yyyy-MM-dd HH:mm:ss} - %msg%n'
 
 # Spring Boot Configuration
 spring.lifecycle:
-  timeout-per-shutdown-phase: 30s  # Graceful shutdown timeout
+  timeout-per-shutdown-phase: 30s # Graceful shutdown timeout

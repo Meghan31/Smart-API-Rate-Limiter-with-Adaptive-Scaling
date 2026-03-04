@@ -29,7 +29,7 @@ services:
       - key: RATE_LIMITER_CAPACITY
         value: 100
       - key: RATE_LIMITER_REFILL_RATE
-        value: 10.0
+        value: 5.0
 
   # Redis database
   - type: redis
