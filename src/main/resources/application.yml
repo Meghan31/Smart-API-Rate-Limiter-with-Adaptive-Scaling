@@ -45,7 +45,7 @@ rate-limiter:
   token-bucket:
     enabled: true
     capacity: 100        # Maximum number of tokens
-    refill-rate: 1.0     # Tokens per second
+    refill-rate: 10.0    # Tokens per second
 
 # Actuator Configuration
 management:
